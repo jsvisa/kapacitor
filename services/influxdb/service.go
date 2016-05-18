@@ -91,6 +91,7 @@ func NewService(configs []Config, defaultInfluxDB int, hostname string, l *log.L
 			clusterID:      clusterID,
 			subName:        subName,
 			disableSubs:    c.DisableSubscriptions,
+			protocol:       c.SubscriptionProtocol,
 		}
 		if defaultInfluxDB == i {
 			defaultInfluxDBName = c.Name
@@ -146,6 +147,7 @@ type influxdb struct {
 	exConfigSubs   map[subEntry]bool
 	hostname       string
 	logger         *log.Logger
+	protocol       string
 	udpBuffer      int
 	udpReadBuffer  int
 	startupTimeout time.Duration
@@ -329,7 +331,22 @@ func (s *influxdb) linkSubscriptions() error {
 					}
 					existingSubs[se] = si
 				} else if se.name == s.subName {
-					existingSubs[se] = si
+					// Check if the protocol has changed
+					if len(si.Destinations) == 0 {
+						s.logger.Println("E! found subscription without any destinations:", se)
+						continue
+					}
+					u, err := url.Parse(si.Destinations[0])
+					if err != nil {
+						s.logger.Println("E! found subscription with invalid destinations:", si)
+						continue
+					}
+					if u.Scheme != s.protocol {
+						// Drop the sub and let it get recreated
+						s.dropSub(cli, se.name, se.cluster, se.rp)
+					} else {
+						existingSubs[se] = si
+					}
 				}
 			}
 		}
@@ -364,9 +381,16 @@ func (s *influxdb) linkSubscriptions() error {
 	for _, se := range allSubs {
 		// If we have been configured to subscribe and the subscription is not started yet.
 		if (s.configSubs[se] || all) && !startedSubs[se] && !s.exConfigSubs[se] {
-			u, err := url.Parse("udp://:0")
+			var urlStr string
+			switch s.protocol {
+			case "http", "https":
+				urlStr = fmt.Sprintf("%s://%s:%d", s.protocol, s.hostname, 9092)
+			case "udp":
+				urlStr = "udp://:0"
+			}
+			u, err := url.Parse(urlStr)
 			if err != nil {
-				return fmt.Errorf("could not create valid destination url, is hostname correct? err: %s", err)
+				return fmt.Errorf("could not create valid destination url, err: %s", err)
 			}
 
 			numSubscriptions++
@@ -376,7 +400,13 @@ func (s *influxdb) linkSubscriptions() error {
 			}
 
 			// Get port from addr
-			destination := fmt.Sprintf("udp://%s:%d", s.hostname, addr.Port)
+			var destination string
+			switch s.protocol {
+			case "http", "https":
+				destination = urlStr
+			case "udp":
+				destination = fmt.Sprintf("udp://%s:%d", s.hostname, addr.Port)
+			}
 
 			err = s.createSub(cli, se.name, se.cluster, se.rp, "ANY", []string{destination})
 			if err != nil {
