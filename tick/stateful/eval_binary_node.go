@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 )
 
 type resultContainer struct {
@@ -23,6 +23,9 @@ type resultContainer struct {
 
 	IsStringValue bool
 	StringValue   string
+
+	IsDurationValue bool
+	DurationValue   time.Duration
 }
 
 // this function shouldn't be used! only for throwing details error messages!
@@ -50,12 +53,12 @@ type ErrSide struct {
 }
 
 // Evaluation functions
-type evaluationFn func(scope *tick.Scope, executionState ExecutionState, left, right NodeEvaluator) (resultContainer, *ErrSide)
+type evaluationFn func(scope *Scope, executionState ExecutionState, left, right NodeEvaluator) (resultContainer, *ErrSide)
 
 // EvalBinaryNode is stateful expression which
 //  is evaluated using "expression trees" instead of stack based interpreter
 type EvalBinaryNode struct {
-	operator tick.TokenType
+	operator ast.TokenType
 
 	// This the evaluation function for this comparison node
 	// this function can be:
@@ -75,8 +78,8 @@ type EvalBinaryNode struct {
 	returnType ValueType
 }
 
-func NewEvalBinaryNode(node *tick.BinaryNode) (*EvalBinaryNode, error) {
-	if !tick.IsExprOperator(node.Operator) {
+func NewEvalBinaryNode(node *ast.BinaryNode) (*EvalBinaryNode, error) {
+	if !ast.IsExprOperator(node.Operator) {
 		return nil, fmt.Errorf("unknown binary operator %v", node.Operator)
 	}
 	expression := &EvalBinaryNode{
@@ -113,18 +116,49 @@ func NewEvalBinaryNode(node *tick.BinaryNode) (*EvalBinaryNode, error) {
 }
 
 func (n *EvalBinaryNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error) {
-	return findNodeTypes(n.returnType, []NodeEvaluator{n.leftEvaluator, n.rightEvaluator}, scope, executionState)
+	if n.returnType == InvalidType {
+		var err error
+		// We are dynamic and we need to figure out our type
+		n.leftType, err = n.leftEvaluator.Type(scope, executionState)
+		if err != nil {
+			return InvalidType, err
+		}
+		n.rightType, err = n.rightEvaluator.Type(scope, executionState)
+		if err != nil {
+			return InvalidType, err
+		}
+		// Do NOT cache this result in n.returnType since it can change.
+		typ := binaryConstantTypes[operationKey{operator: n.operator, leftType: n.leftType, rightType: n.rightType}]
+		if typ == InvalidType {
+			return typ, n.determineError(nil, ExecutionState{})
+		}
+		return typ, nil
+	}
+	return n.returnType, nil
 }
 
-func (n *EvalBinaryNode) EvalRegex(scope *tick.Scope, executionState ExecutionState) (*regexp.Regexp, error) {
+func (n *EvalBinaryNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
 	return nil, ErrTypeGuardFailed{RequestedType: TRegex, ActualType: n.returnType}
 }
 
-func (n *EvalBinaryNode) EvalTime(scope *tick.Scope, executionState ExecutionState) (time.Time, error) {
+func (n *EvalBinaryNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
 	return time.Time{}, ErrTypeGuardFailed{RequestedType: TTime, ActualType: n.returnType}
 }
 
-func (e *EvalBinaryNode) EvalString(scope *tick.Scope, executionState ExecutionState) (string, error) {
+func (e *EvalBinaryNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
+	result, err := e.eval(scope, executionState)
+	if err != nil {
+		return 0, err.error
+	}
+
+	if result.IsDurationValue {
+		return result.DurationValue, nil
+	}
+
+	return 0, fmt.Errorf("expression returned unexpected type %T", result.value())
+}
+
+func (e *EvalBinaryNode) EvalString(scope *Scope, executionState ExecutionState) (string, error) {
 	result, err := e.eval(scope, executionState)
 	if err != nil {
 		return "", err.error
@@ -138,7 +172,7 @@ func (e *EvalBinaryNode) EvalString(scope *tick.Scope, executionState ExecutionS
 }
 
 // EvalBool executes the expression based on eval bool
-func (e *EvalBinaryNode) EvalBool(scope *tick.Scope, executionState ExecutionState) (bool, error) {
+func (e *EvalBinaryNode) EvalBool(scope *Scope, executionState ExecutionState) (bool, error) {
 	result, err := e.eval(scope, executionState)
 	if err != nil {
 		return false, err.error
@@ -152,7 +186,7 @@ func (e *EvalBinaryNode) EvalBool(scope *tick.Scope, executionState ExecutionSta
 }
 
 // EvalNum executes the expression based on eval numeric
-func (e *EvalBinaryNode) EvalFloat(scope *tick.Scope, executionState ExecutionState) (float64, error) {
+func (e *EvalBinaryNode) EvalFloat(scope *Scope, executionState ExecutionState) (float64, error) {
 	result, err := e.eval(scope, executionState)
 	if err != nil {
 		return float64(0), err.error
@@ -169,7 +203,7 @@ func (e *EvalBinaryNode) EvalFloat(scope *tick.Scope, executionState ExecutionSt
 	return float64(0), ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: e.returnType}
 }
 
-func (e *EvalBinaryNode) EvalInt(scope *tick.Scope, executionState ExecutionState) (int64, error) {
+func (e *EvalBinaryNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
 	result, err := e.eval(scope, executionState)
 	if err != nil {
 		return int64(0), err.error
@@ -187,7 +221,7 @@ func (e *EvalBinaryNode) EvalInt(scope *tick.Scope, executionState ExecutionStat
 
 }
 
-func (e *EvalBinaryNode) eval(scope *tick.Scope, executionState ExecutionState) (resultContainer, *ErrSide) {
+func (e *EvalBinaryNode) eval(scope *Scope, executionState ExecutionState) (resultContainer, *ErrSide) {
 	if e.evaluationFn == nil {
 		err := e.determineError(scope, executionState)
 		return boolFalseResultContainer, &ErrSide{error: err}
@@ -213,6 +247,9 @@ func (e *EvalBinaryNode) eval(scope *tick.Scope, executionState ExecutionState) 
 
 			// redefine the evaluation fn
 			e.evaluationFn = e.lookupEvaluationFn()
+			if e.evaluationFn == nil {
+				return boolFalseResultContainer, err
+			}
 
 			// try again
 			return e.eval(scope, executionState)
@@ -224,7 +261,7 @@ func (e *EvalBinaryNode) eval(scope *tick.Scope, executionState ExecutionState) 
 
 // evaluateDynamicNode fetches the value of the right and left node at evaluation time (aka "runtime")
 // and find the matching evaluation function for the givne types - this is where the "specialisation" happens.
-func (e *EvalBinaryNode) evaluateDynamicNode(scope *tick.Scope, executionState ExecutionState, left, right NodeEvaluator) (resultContainer, *ErrSide) {
+func (e *EvalBinaryNode) evaluateDynamicNode(scope *Scope, executionState ExecutionState, left, right NodeEvaluator) (resultContainer, *ErrSide) {
 	var leftType ValueType
 	var rightType ValueType
 	var err error
@@ -253,7 +290,7 @@ func (e *EvalBinaryNode) evaluateDynamicNode(scope *tick.Scope, executionState E
 }
 
 // Return an understandable error which is most specific to the issue.
-func (e *EvalBinaryNode) determineError(scope *tick.Scope, executionState ExecutionState) error {
+func (e *EvalBinaryNode) determineError(scope *Scope, executionState ExecutionState) error {
 	if scope != nil {
 		typeExecutionState := CreateExecutionState()
 		leftType, err := e.leftEvaluator.Type(scope, typeExecutionState)
@@ -277,9 +314,9 @@ func (e *EvalBinaryNode) determineError(scope *tick.Scope, executionState Execut
 		}
 	}
 
-	if !typeToBinaryOperators[e.leftType][e.operator] {
+	if e.leftType != InvalidType && !typeToBinaryOperators[e.leftType][e.operator] {
 		return fmt.Errorf("invalid %s operator %v for type %s", operatorKind(e.operator), e.operator, e.leftType)
-	} else if !typeToBinaryOperators[e.leftType][e.operator] {
+	} else if e.rightType != InvalidType && !typeToBinaryOperators[e.leftType][e.operator] {
 		return fmt.Errorf("invalid %s operator %v for type %s", operatorKind(e.operator), e.operator, e.rightType)
 	}
 
@@ -287,22 +324,26 @@ func (e *EvalBinaryNode) determineError(scope *tick.Scope, executionState Execut
 }
 
 func (e *EvalBinaryNode) lookupEvaluationFn() evaluationFn {
-	return evaluationFuncs[operationKey{operator: e.operator, leftType: e.leftType, rightType: e.rightType}]
+	info := evaluationFuncs[operationKey{operator: e.operator, leftType: e.leftType, rightType: e.rightType}]
+	if info == nil {
+		return nil
+	}
+	return info.f
 }
 
-var typeToBinaryOperators = (func() map[ValueType]map[tick.TokenType]bool {
+var typeToBinaryOperators = (func() map[ValueType]map[ast.TokenType]bool {
 	// This map is built at "runtime" because we don't to have tight coupling
 	// every time we had new "comparison operator" / "math operator" to update this map
 	// and the performance cost is neglibile for doing so.
 
-	result := make(map[ValueType]map[tick.TokenType]bool)
+	result := make(map[ValueType]map[ast.TokenType]bool)
 
 	for opKey := range evaluationFuncs {
 		// Left
 		typeSet, exists := result[opKey.leftType]
 
 		if !exists {
-			result[opKey.leftType] = make(map[tick.TokenType]bool, 0)
+			result[opKey.leftType] = make(map[ast.TokenType]bool, 0)
 			typeSet = result[opKey.leftType]
 		}
 
@@ -312,7 +353,7 @@ var typeToBinaryOperators = (func() map[ValueType]map[tick.TokenType]bool {
 		typeSet, exists = result[opKey.rightType]
 
 		if !exists {
-			result[opKey.rightType] = make(map[tick.TokenType]bool, 0)
+			result[opKey.rightType] = make(map[ast.TokenType]bool, 0)
 			typeSet = result[opKey.rightType]
 		}
 
@@ -322,13 +363,13 @@ var typeToBinaryOperators = (func() map[ValueType]map[tick.TokenType]bool {
 	return result
 })()
 
-func operatorKind(operator tick.TokenType) string {
+func operatorKind(operator ast.TokenType) string {
 	switch {
-	case tick.IsMathOperator(operator):
+	case ast.IsMathOperator(operator):
 		return "math"
-	case tick.IsCompOperator(operator):
+	case ast.IsCompOperator(operator):
 		return "comparison"
-	case tick.IsLogicalOperator(operator):
+	case ast.IsLogicalOperator(operator):
 		return "logical"
 	}
 

@@ -1,8 +1,6 @@
 package pipeline
 
-import (
-	"github.com/influxdata/kapacitor/tick"
-)
+import "github.com/influxdata/kapacitor/tick/ast"
 
 // Evaluates expressions on each data point it receives.
 // A list of expressions may be provided and will be evaluated in the order they are given
@@ -30,7 +28,7 @@ type EvalNode struct {
 	AsList []string `tick:"As"`
 
 	// tick:ignore
-	Expressions []tick.Node
+	Expressions []ast.Node
 
 	// tick:ignore
 	KeepFlag bool `tick:"Keep"`
@@ -44,7 +42,7 @@ type EvalNode struct {
 	QuiteFlag bool `tick:"Quiet"`
 }
 
-func newEvalNode(e EdgeType, exprs []tick.Node) *EvalNode {
+func newEvalNode(e EdgeType, exprs []ast.Node) *EvalNode {
 	n := &EvalNode{
 		chainnode:   newBasicChainNode("eval", e, e),
 		Expressions: exprs,

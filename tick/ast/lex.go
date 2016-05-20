@@ -1,4 +1,4 @@
-package tick
+package ast
 
 import (
 	"fmt"
@@ -140,6 +140,8 @@ func (t TokenType) String() string {
 		return "reference"
 	case t == TokenDuration:
 		return "duration"
+	case t == TokenLambda:
+		return "lambda"
 	case t == TokenNumber:
 		return "number"
 	case t == TokenString:

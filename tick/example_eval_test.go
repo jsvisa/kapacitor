@@ -2,6 +2,8 @@ package tick
 
 import (
 	"fmt"
+
+	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
 type Process struct {
@@ -39,7 +41,7 @@ child1|spawn().name('grandchild')
 parent|spawn().name('child2')
 `
 
-	scope := NewScope()
+	scope := stateful.NewScope()
 	parent := &Process{}
 	scope.Set("parent", parent)
 

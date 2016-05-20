@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/kapacitor/models"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/services/httpd"
-	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/stateful"
 	"github.com/influxdata/kapacitor/timer"
 	"github.com/influxdata/kapacitor/udf"
 )
@@ -261,8 +261,8 @@ func (tm *TaskMaster) waitForForks() {
 	tm.wg.Wait()
 }
 
-func (tm *TaskMaster) CreateTICKScope() *tick.Scope {
-	scope := tick.NewScope()
+func (tm *TaskMaster) CreateTICKScope() *stateful.Scope {
+	scope := stateful.NewScope()
 	scope.Set("time", func(d time.Duration) time.Duration { return d })
 	// Add dynamic methods to the scope for UDFs
 	if tm.UDFService != nil {
@@ -271,7 +271,7 @@ func (tm *TaskMaster) CreateTICKScope() *tick.Scope {
 			info, _ := tm.UDFService.Info(f)
 			scope.SetDynamicMethod(
 				f,
-				tick.DynamicMethod(func(self interface{}, args ...interface{}) (interface{}, error) {
+				stateful.DynamicMethod(func(self interface{}, args ...interface{}) (interface{}, error) {
 					parent, ok := self.(pipeline.Node)
 					if !ok {
 						return nil, fmt.Errorf("cannot call %s on %T", f, self)

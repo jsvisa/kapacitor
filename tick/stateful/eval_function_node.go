@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 )
 
 type EvalFunctionNode struct {
@@ -13,7 +13,7 @@ type EvalFunctionNode struct {
 	argsEvaluators []NodeEvaluator
 }
 
-func NewEvalFunctionNode(funcNode *tick.FunctionNode) (*EvalFunctionNode, error) {
+func NewEvalFunctionNode(funcNode *ast.FunctionNode) (*EvalFunctionNode, error) {
 	evalFuncNode := &EvalFunctionNode{
 		funcName: funcNode.Func,
 	}
@@ -33,7 +33,7 @@ func NewEvalFunctionNode(funcNode *tick.FunctionNode) (*EvalFunctionNode, error)
 
 func (n *EvalFunctionNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error) {
 	// PERF: today we are evaluating the function, it will be much faster if will type info the function it self
-	result, err := n.callFunction(scope.(*tick.Scope), executionState)
+	result, err := n.callFunction(scope.(*Scope), executionState)
 	if err != nil {
 		return InvalidType, err
 	}
@@ -44,7 +44,7 @@ func (n *EvalFunctionNode) Type(scope ReadOnlyScope, executionState ExecutionSta
 }
 
 // callFunction - core method for evaluating function where all NodeEvaluator methods should use
-func (n *EvalFunctionNode) callFunction(scope *tick.Scope, executionState ExecutionState) (interface{}, error) {
+func (n *EvalFunctionNode) callFunction(scope *Scope, executionState ExecutionState) (interface{}, error) {
 	args := make([]interface{}, 0, len(n.argsEvaluators))
 	for i, argEvaluator := range n.argsEvaluators {
 		value, err := eval(argEvaluator, scope, executionState)
@@ -69,7 +69,7 @@ func (n *EvalFunctionNode) callFunction(scope *tick.Scope, executionState Execut
 	return ret, nil
 }
 
-func (n *EvalFunctionNode) EvalRegex(scope *tick.Scope, executionState ExecutionState) (*regexp.Regexp, error) {
+func (n *EvalFunctionNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (n *EvalFunctionNode) EvalRegex(scope *tick.Scope, executionState Execution
 	return nil, ErrTypeGuardFailed{RequestedType: TRegex, ActualType: valueTypeOf(refValue)}
 }
 
-func (n *EvalFunctionNode) EvalTime(scope *tick.Scope, executionState ExecutionState) (time.Time, error) {
+func (n *EvalFunctionNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return time.Time{}, err
@@ -95,7 +95,20 @@ func (n *EvalFunctionNode) EvalTime(scope *tick.Scope, executionState ExecutionS
 	return time.Time{}, ErrTypeGuardFailed{RequestedType: TTime, ActualType: valueTypeOf(refValue)}
 }
 
-func (n *EvalFunctionNode) EvalString(scope *tick.Scope, executionState ExecutionState) (string, error) {
+func (n *EvalFunctionNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
+	refValue, err := n.callFunction(scope, executionState)
+	if err != nil {
+		return 0, err
+	}
+
+	if durValue, isDuration := refValue.(time.Duration); isDuration {
+		return durValue, nil
+	}
+
+	return 0, ErrTypeGuardFailed{RequestedType: TDuration, ActualType: valueTypeOf(refValue)}
+}
+
+func (n *EvalFunctionNode) EvalString(scope *Scope, executionState ExecutionState) (string, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return "", err
@@ -108,7 +121,7 @@ func (n *EvalFunctionNode) EvalString(scope *tick.Scope, executionState Executio
 	return "", ErrTypeGuardFailed{RequestedType: TString, ActualType: valueTypeOf(refValue)}
 }
 
-func (n *EvalFunctionNode) EvalFloat(scope *tick.Scope, executionState ExecutionState) (float64, error) {
+func (n *EvalFunctionNode) EvalFloat(scope *Scope, executionState ExecutionState) (float64, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return float64(0), err
@@ -121,7 +134,7 @@ func (n *EvalFunctionNode) EvalFloat(scope *tick.Scope, executionState Execution
 	return float64(0), ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: valueTypeOf(refValue)}
 }
 
-func (n *EvalFunctionNode) EvalInt(scope *tick.Scope, executionState ExecutionState) (int64, error) {
+func (n *EvalFunctionNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return int64(0), err
@@ -134,7 +147,7 @@ func (n *EvalFunctionNode) EvalInt(scope *tick.Scope, executionState ExecutionSt
 	return int64(0), ErrTypeGuardFailed{RequestedType: TInt64, ActualType: valueTypeOf(refValue)}
 }
 
-func (n *EvalFunctionNode) EvalBool(scope *tick.Scope, executionState ExecutionState) (bool, error) {
+func (n *EvalFunctionNode) EvalBool(scope *Scope, executionState ExecutionState) (bool, error) {
 	refValue, err := n.callFunction(scope, executionState)
 	if err != nil {
 		return false, err
@@ -149,7 +162,7 @@ func (n *EvalFunctionNode) EvalBool(scope *tick.Scope, executionState ExecutionS
 
 // eval - generic evaluation until we have reflection/introspection capabillities so we can know the type of args
 // and return type, we can remove this entirely
-func eval(n NodeEvaluator, scope *tick.Scope, executionState ExecutionState) (interface{}, error) {
+func eval(n NodeEvaluator, scope *Scope, executionState ExecutionState) (interface{}, error) {
 	retType, err := n.Type(scope, CreateExecutionState())
 	if err != nil {
 		return nil, err

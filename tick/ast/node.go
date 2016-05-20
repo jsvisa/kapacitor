@@ -1,4 +1,4 @@
-package tick
+package ast
 
 import (
 	"bytes"
@@ -12,7 +12,8 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
-type unboundFunc func(obj interface{}) (interface{}, error)
+// Indent string for formatted TICKscripts
+const indentStep = "    "
 
 type Position interface {
 	Position() int // byte position of start of node in full original input string
@@ -54,6 +55,51 @@ func (p position) Char() int {
 }
 func (p position) String() string {
 	return fmt.Sprintf("%dl%dc%d", p.pos, p.line, p.char)
+}
+
+// Convert raw value to literal node, for all supported basic types.
+func ValueToLiteralNode(pos Position, v interface{}) (Node, error) {
+	p := position{
+		pos:  pos.Position(),
+		line: pos.Line(),
+		char: pos.Char(),
+	}
+	switch value := v.(type) {
+	case bool:
+		return &BoolNode{
+			position: p,
+			Bool:     value,
+		}, nil
+	case int64:
+		return &NumberNode{
+			position: p,
+			IsInt:    true,
+			Int64:    value,
+		}, nil
+	case float64:
+		return &NumberNode{
+			position: p,
+			IsFloat:  true,
+			Float64:  value,
+		}, nil
+	case time.Duration:
+		return &DurationNode{
+			position: p,
+			Dur:      value,
+		}, nil
+	case string:
+		return &StringNode{
+			position: p,
+			Literal:  value,
+		}, nil
+	case *regexp.Regexp:
+		return &RegexNode{
+			position: p,
+			Regex:    value,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported literal type %T", v)
+	}
 }
 
 // numberNode holds a number: signed or unsigned integer or float.
@@ -321,6 +367,61 @@ func (n *DeclarationNode) Format(buf *bytes.Buffer, indent string, onNewLine boo
 	n.Right.Format(buf, indent, false)
 }
 func (n *DeclarationNode) SetComment(c *CommentNode) {
+	n.Comment = c
+}
+
+type TypeDeclarationNode struct {
+	position
+	Node    *IdentifierNode
+	Type    *IdentifierNode
+	Comment *CommentNode
+}
+
+func newTypeDecl(p position, node, typeIdent *IdentifierNode, c *CommentNode) *TypeDeclarationNode {
+	//var typ Type
+	//switch typeIdent.Ident {
+	//case "float":
+	//	typ = TFloat
+	//case "int":
+	//	typ = TInt
+	//case "string":
+	//	typ = TString
+	//case "boolean":
+	//	typ = TBool
+	//case "regex":
+	//	typ = TRegex
+	//case "duration":
+	//	typ = TDuration
+	//case "lambda":
+	//	typ = TLambda
+	//case "node":
+	//	typ = TNode
+	//}
+
+	return &TypeDeclarationNode{
+		position: p,
+		Node:     node,
+		Type:     typeIdent,
+		Comment:  c,
+	}
+}
+
+func (n *TypeDeclarationNode) String() string {
+	return fmt.Sprintf("TypeDeclarationNode@%v{%v %v}%v", n.position, n.Node, n.Type, n.Comment)
+}
+
+func (n *TypeDeclarationNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
+	if n.Comment != nil {
+		n.Comment.Format(buf, indent, onNewLine)
+	}
+	buf.WriteString(KW_Var)
+	buf.WriteByte(' ')
+	n.Node.Format(buf, indent, false)
+	buf.WriteByte(' ')
+	n.Type.Format(buf, indent, false)
+}
+
+func (n *TypeDeclarationNode) SetComment(c *CommentNode) {
 	n.Comment = c
 }
 
@@ -611,24 +712,24 @@ func (n *StarNode) SetComment(c *CommentNode) {
 	n.Comment = c
 }
 
-type funcType int
+type FuncType int
 
 const (
-	globalFunc funcType = iota
-	chainFunc
-	propertyFunc
-	dynamicFunc
+	GlobalFunc FuncType = iota
+	ChainFunc
+	PropertyFunc
+	DynamicFunc
 )
 
-func (ft funcType) String() string {
+func (ft FuncType) String() string {
 	switch ft {
-	case globalFunc:
+	case GlobalFunc:
 		return "global"
-	case chainFunc:
+	case ChainFunc:
 		return "chain"
-	case propertyFunc:
+	case PropertyFunc:
 		return "property"
-	case dynamicFunc:
+	case DynamicFunc:
 		return "dynamic"
 	default:
 		return "unknown"
@@ -638,14 +739,14 @@ func (ft funcType) String() string {
 //Holds the a function call with its args
 type FunctionNode struct {
 	position
-	Type      funcType
+	Type      FuncType
 	Func      string // The identifier
 	Args      []Node
 	Comment   *CommentNode
 	MultiLine bool
 }
 
-func newFunc(p position, ft funcType, ident string, args []Node, multi bool, c *CommentNode) *FunctionNode {
+func newFunc(p position, ft FuncType, ident string, args []Node, multi bool, c *CommentNode) *FunctionNode {
 	return &FunctionNode{
 		position:  p,
 		Type:      ft,

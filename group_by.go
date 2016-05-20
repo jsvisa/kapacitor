@@ -7,7 +7,7 @@ import (
 
 	"github.com/influxdata/kapacitor/models"
 	"github.com/influxdata/kapacitor/pipeline"
-	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 )
 
 type GroupByNode struct {
@@ -98,7 +98,7 @@ DIMS:
 		switch d := dim.(type) {
 		case string:
 			realDimensions = append(realDimensions, d)
-		case *tick.StarNode:
+		case *ast.StarNode:
 			allDimensions = true
 			break DIMS
 		}

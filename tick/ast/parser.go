@@ -1,4 +1,4 @@
-package tick
+package ast
 
 import (
 	"fmt"
@@ -15,12 +15,16 @@ type parser struct {
 	lex       *lexer
 	token     [2]token //two-token lookahead for parser
 	peekCount int
+
+	// Current comment node.
+	// Comments are parsed transparently via the normal next peek operations.
+	comments [2]*CommentNode
 }
 
-// parse returns a Node, created by parsing the DSL described in the
+// Parse returns a Node, created by parsing the DSL described in the
 // argument string. If an error is encountered, parsing stops and a nil Node
 // is returned with the error.
-func parse(text string) (Node, error) {
+func Parse(text string) (Node, error) {
 	p := &parser{}
 	err := p.Parse(text)
 	if err != nil {
@@ -37,12 +41,29 @@ func (p *parser) hasNewLine(start, end int) bool {
 // Parsing methods
 //
 
+func (p *parser) nextToken() (t token, comment *CommentNode) {
+	// When reading next token create comment node if comment.
+	t, _ = p.lex.nextToken()
+	var comments []string
+	pos := -1
+	for ; t.typ == TokenComment; t, _ = p.lex.nextToken() {
+		if pos == -1 {
+			pos = t.pos
+		}
+		comments = append(comments, t.val)
+	}
+	if len(comments) > 0 {
+		comment = newComment(p.position(pos), comments)
+	}
+	return t, comment
+}
+
 // next returns the next token.
 func (p *parser) next() token {
 	if p.peekCount > 0 {
 		p.peekCount--
 	} else {
-		p.token[0], _ = p.lex.nextToken()
+		p.token[0], p.comments[0] = p.nextToken()
 	}
 	return p.token[p.peekCount]
 }
@@ -58,9 +79,16 @@ func (p *parser) peek() token {
 		return p.token[p.peekCount-1]
 	}
 	p.peekCount = 1
-	p.token[1] = p.token[0]
-	p.token[0], _ = p.lex.nextToken()
+	p.token[1], p.comments[1] = p.token[0], p.comments[0]
+	p.token[0], p.comments[0] = p.nextToken()
 	return p.token[0]
+}
+
+// Consume the current comment node
+func (p *parser) consumeComment() *CommentNode {
+	c := p.comments[p.peekCount]
+	p.comments[p.peekCount] = nil
+	return c
 }
 
 // errorf formats the error and terminates processing.
@@ -161,119 +189,131 @@ func (p *parser) Parse(text string) (err error) {
 func (p *parser) parse() {
 	p.Root = p.program()
 	p.expect(TokenEOF)
-	//if err := t.Root.Check(); err != nil {
-	//	t.error(err)
-	//}
 }
 
 //parse a complete program
 func (p *parser) program() Node {
-	l := newList(p.position(p.peek().pos))
+	l := newList(p.position(0))
 	var s Node
-	var prevc, nextc *CommentNode
 	for {
 		switch p.peek().typ {
 		case TokenEOF:
-			if prevc != nil {
-				l.Add(prevc)
+			if c := p.comments[1]; c != nil {
+				l.Add(c)
+			}
+			if c := p.comments[0]; c != nil {
+				l.Add(c)
 			}
 			return l
 		default:
-			s, nextc = p.statement(prevc)
+			s = p.statement()
 			l.Add(s)
 		}
-		prevc = nextc
 	}
 }
 
 //parse a statement
-func (p *parser) statement(c *CommentNode) (Node, *CommentNode) {
-	if c == nil {
-		c = p.comment()
-	}
+func (p *parser) statement() Node {
 	switch t := p.peek().typ; t {
 	case TokenVar:
-		return p.declaration(c)
+		return p.declaration()
 	default:
-		return p.expression(c)
+		return p.expression()
 	}
 }
 
 //parse a declaration statement
-func (p *parser) declaration(c *CommentNode) (Node, *CommentNode) {
-	if c == nil {
-		c = p.comment()
+func (p *parser) declaration() Node {
+	varTok := p.expect(TokenVar)
+	declC := p.consumeComment()
+	v := p.identifier()
+	if p.peek().typ == TokenAsgn {
+		p.expect(TokenAsgn)
+		b := p.expression()
+		return newDecl(p.position(varTok.pos), v, b, declC)
+	} else {
+		t := p.identifier()
+		return newTypeDecl(p.position(varTok.pos), v, t, declC)
 	}
-	v := p.vr()
-	op := p.expect(TokenAsgn)
-	b, extra := p.expression(nil)
-	return newDecl(p.position(op.pos), v, b, c), extra
-}
-
-//parse a 'var ident' expression
-func (p *parser) vr() *IdentifierNode {
-	p.expect(TokenVar)
-	ident := p.expect(TokenIdent)
-	return newIdent(p.position(ident.pos), ident.val, nil)
 }
 
 //parse an expression
-func (p *parser) expression(c *CommentNode) (Node, *CommentNode) {
-	if c == nil {
-		c = p.comment()
-	}
+func (p *parser) expression() Node {
 	switch p.peek().typ {
 	case TokenIdent:
-		term := p.funcOrIdent(globalFunc, c)
-		return p.chain(term)
+		p.next()
+		switch p.peek().typ {
+		case TokenLParen:
+			p.backup()
+			term := p.function(GlobalFunc)
+			switch p.peek().typ {
+			case TokenDot, TokenPipe, TokenAt, TokenVar, TokenIdent:
+				return p.chain(term)
+			default:
+				return p.precedence(term, 0)
+			}
+		case TokenDot, TokenAt, TokenPipe, TokenVar, TokenIdent:
+			p.backup()
+			term := p.identifier()
+			return p.chain(term)
+		default:
+			p.backup()
+			return p.primaryExpr()
+		}
+	case TokenLambda:
+		lambda := p.next()
+		lambdaC := p.consumeComment()
+		l := p.primaryExpr()
+		return newLambda(p.position(lambda.pos), l, lambdaC)
 	default:
-		return p.primary(c), nil
+		return p.primaryExpr()
 	}
 }
 
 //parse a function or identifier invocation chain
 // '|', '.' operators are left-associative.
-func (p *parser) chain(lhs Node) (Node, *CommentNode) {
-	c := p.comment()
+func (p *parser) chain(lhs Node) Node {
 	if t := p.peek().typ; t == TokenDot || t == TokenPipe || t == TokenAt {
 		op := p.next()
-		var ft funcType
+		c := p.consumeComment()
+		var ft FuncType
 		switch op.typ {
 		case TokenDot:
-			ft = propertyFunc
+			ft = PropertyFunc
 		case TokenPipe:
-			ft = chainFunc
+			ft = ChainFunc
 		case TokenAt:
-			ft = dynamicFunc
+			ft = DynamicFunc
 		}
-		rhs := p.funcOrIdent(ft, nil)
+		rhs := p.funcOrIdent(ft)
 		return p.chain(newChain(p.position(op.pos), op.typ, lhs, rhs, c))
 	}
-	return lhs, c
+	return lhs
 }
 
-func (p *parser) funcOrIdent(ft funcType, c *CommentNode) (n Node) {
+func (p *parser) funcOrIdent(ft FuncType) (n Node) {
 	p.next()
-	if ft == chainFunc || p.peek().typ == TokenLParen {
+	if ft == ChainFunc || p.peek().typ == TokenLParen {
 		p.backup()
-		n = p.function(ft, c)
+		n = p.function(ft)
 	} else {
 		p.backup()
-		n = p.identifier(c)
+		n = p.identifier()
 	}
 	return
 }
 
 //parse an identifier
-func (p *parser) identifier(c *CommentNode) Node {
+func (p *parser) identifier() *IdentifierNode {
 	ident := p.expect(TokenIdent)
-	n := newIdent(p.position(ident.pos), ident.val, c)
+	n := newIdent(p.position(ident.pos), ident.val, p.consumeComment())
 	return n
 }
 
 //parse a function call
-func (p *parser) function(ft funcType, c *CommentNode) Node {
+func (p *parser) function(ft FuncType) Node {
 	ident := p.expect(TokenIdent)
+	c := p.consumeComment()
 	p.expect(TokenLParen)
 	args := p.parameters()
 	p.expect(TokenRParen)
@@ -300,23 +340,23 @@ func (p *parser) parameters() (args []Node) {
 }
 
 func (p *parser) parameter() (n Node) {
-	c := p.comment()
 	switch p.peek().typ {
 	case TokenIdent:
-		n, _ = p.expression(c)
+		n = p.expression()
 	case TokenLambda:
 		lambda := p.next()
-		l := p.binaryExpr()
+		c := p.consumeComment()
+		l := p.primaryExpr()
 		n = newLambda(p.position(lambda.pos), l, c)
 	default:
-		n = p.primary(c)
+		n = p.primary()
 	}
 	return
 }
 
 // parse the lambda expression.
-func (p *parser) binaryExpr() Node {
-	return p.precedence(p.primary(nil), 0)
+func (p *parser) primaryExpr() Node {
+	return p.precedence(p.primary(), 0)
 }
 
 // Operator Precedence parsing
@@ -344,7 +384,8 @@ func (p *parser) precedence(lhs Node, minP int) Node {
 	look := p.peek()
 	for IsExprOperator(look.typ) && precedence[look.typ] >= minP {
 		op := p.next()
-		rhs := p.primary(nil)
+		c := p.consumeComment()
+		rhs := p.primary()
 		look = p.peek()
 		// left-associative
 		for IsExprOperator(look.typ) && precedence[look.typ] > precedence[op.typ] {
@@ -353,7 +394,7 @@ func (p *parser) precedence(lhs Node, minP int) Node {
 		}
 
 		multiLine := p.hasNewLine(lhs.Position(), rhs.Position())
-		lhs = newBinary(p.position(op.pos), op.typ, lhs, rhs, multiLine, nil)
+		lhs = newBinary(p.position(op.pos), op.typ, lhs, rhs, multiLine, c)
 	}
 	return lhs
 }
@@ -369,7 +410,7 @@ func (p *parser) lfunction() Node {
 	if l := len(args); l > 0 {
 		multiLine = p.hasNewLine(ident.pos, args[l-1].Position())
 	}
-	n := newFunc(p.position(ident.pos), globalFunc, ident.val, args, multiLine, nil)
+	n := newFunc(p.position(ident.pos), GlobalFunc, ident.val, args, multiLine, nil)
 	return n
 }
 
@@ -388,22 +429,19 @@ func (p *parser) lparameters() (args []Node) {
 }
 
 func (p *parser) lparameter() (n Node) {
-	n = p.primary(nil)
+	n = p.primary()
 	if IsExprOperator(p.peek().typ) {
 		n = p.precedence(n, 0)
 	}
 	return
 }
 
-// parse a primary expression
-func (p *parser) primary(c *CommentNode) Node {
-	if c == nil {
-		c = p.comment()
-	}
+func (p *parser) primary() Node {
 	switch tok := p.peek(); {
 	case tok.typ == TokenLParen:
 		p.next()
-		n := p.binaryExpr()
+		c := p.consumeComment()
+		n := p.primaryExpr()
 		if b, ok := n.(*BinaryNode); ok {
 			b.Parens = true
 		}
@@ -413,19 +451,19 @@ func (p *parser) primary(c *CommentNode) Node {
 		p.expect(TokenRParen)
 		return n
 	case tok.typ == TokenNumber:
-		return p.number(c)
+		return p.number()
 	case tok.typ == TokenString:
-		return p.string(c)
+		return p.string()
 	case tok.typ == TokenTrue, tok.typ == TokenFalse:
-		return p.boolean(c)
+		return p.boolean()
 	case tok.typ == TokenDuration:
-		return p.duration(c)
+		return p.duration()
 	case tok.typ == TokenRegex:
-		return p.regex(c)
+		return p.regex()
 	case tok.typ == TokenMult:
-		return p.star(c)
+		return p.star()
 	case tok.typ == TokenReference:
-		return p.reference(c)
+		return p.reference()
 	case tok.typ == TokenIdent:
 		p.next()
 		if p.peek().typ == TokenLParen {
@@ -433,10 +471,10 @@ func (p *parser) primary(c *CommentNode) Node {
 			return p.lfunction()
 		}
 		p.backup()
-		return p.identifier(c)
+		return p.identifier()
 	case tok.typ == TokenMinus, tok.typ == TokenNot:
 		p.next()
-		return newUnary(p.position(tok.pos), tok.typ, p.primary(nil), c)
+		return newUnary(p.position(tok.pos), tok.typ, p.primary(), p.consumeComment())
 	default:
 		p.unexpected(
 			tok,
@@ -456,9 +494,9 @@ func (p *parser) primary(c *CommentNode) Node {
 }
 
 //parse a duration literal
-func (p *parser) duration(c *CommentNode) Node {
+func (p *parser) duration() Node {
 	token := p.expect(TokenDuration)
-	num, err := newDur(p.position(token.pos), token.val, c)
+	num, err := newDur(p.position(token.pos), token.val, p.consumeComment())
 	if err != nil {
 		p.error(err)
 	}
@@ -466,9 +504,9 @@ func (p *parser) duration(c *CommentNode) Node {
 }
 
 //parse a number literal
-func (p *parser) number(c *CommentNode) Node {
+func (p *parser) number() Node {
 	token := p.expect(TokenNumber)
-	num, err := newNumber(p.position(token.pos), token.val, c)
+	num, err := newNumber(p.position(token.pos), token.val, p.consumeComment())
 	if err != nil {
 		p.error(err)
 	}
@@ -476,16 +514,16 @@ func (p *parser) number(c *CommentNode) Node {
 }
 
 //parse a string literal
-func (p *parser) string(c *CommentNode) Node {
+func (p *parser) string() Node {
 	token := p.expect(TokenString)
-	s := newString(p.position(token.pos), token.val, c)
+	s := newString(p.position(token.pos), token.val, p.consumeComment())
 	return s
 }
 
 //parse a regex literal
-func (p *parser) regex(c *CommentNode) Node {
+func (p *parser) regex() Node {
 	token := p.expect(TokenRegex)
-	r, err := newRegex(p.position(token.pos), token.val, c)
+	r, err := newRegex(p.position(token.pos), token.val, p.consumeComment())
 	if err != nil {
 		p.error(err)
 	}
@@ -493,39 +531,23 @@ func (p *parser) regex(c *CommentNode) Node {
 }
 
 // parse '*' literal
-func (p *parser) star(c *CommentNode) Node {
+func (p *parser) star() Node {
 	tok := p.expect(TokenMult)
-	return newStar(p.position(tok.pos), c)
+	return newStar(p.position(tok.pos), p.consumeComment())
 }
 
 //parse a reference literal
-func (p *parser) reference(c *CommentNode) Node {
+func (p *parser) reference() Node {
 	token := p.expect(TokenReference)
-	r := newReference(p.position(token.pos), token.val, c)
+	r := newReference(p.position(token.pos), token.val, p.consumeComment())
 	return r
 }
 
-func (p *parser) boolean(c *CommentNode) Node {
+func (p *parser) boolean() Node {
 	n := p.next()
-	num, err := newBool(p.position(n.pos), n.val, c)
+	num, err := newBool(p.position(n.pos), n.val, p.consumeComment())
 	if err != nil {
 		p.error(err)
 	}
 	return num
-}
-
-func (p *parser) comment() *CommentNode {
-	var comments []string
-	pos := -1
-	for p.peek().typ == TokenComment {
-		n := p.next()
-		if pos == -1 {
-			pos = n.pos
-		}
-		comments = append(comments, n.val)
-	}
-	if len(comments) > 0 {
-		return newComment(p.position(pos), comments)
-	}
-	return nil
 }

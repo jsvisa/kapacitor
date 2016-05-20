@@ -3,10 +3,12 @@ package tick_test
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
 //Test structure for evaluating a DSL
@@ -83,7 +85,7 @@ s2|structC()
 	.aggFunc(influxql.agg.sum)
 `
 
-	scope := tick.NewScope()
+	scope := stateful.NewScope()
 	a := &structA{}
 	scope.Set("a", a)
 
@@ -133,7 +135,7 @@ s2|structC()
 func TestEvaluate_DynamicMethod(t *testing.T) {
 	script := `var x = a@dynamicMethod(1,'str', 10s).sad(FALSE)`
 
-	scope := tick.NewScope()
+	scope := stateful.NewScope()
 	a := &structA{}
 	scope.Set("a", a)
 
@@ -187,11 +189,13 @@ func TestEvaluate_Vars(t *testing.T) {
 var x = 3m
 var y = -x
 
-var n = TRUE 
-var m = !n 
+var n = TRUE
+var m = !n
+
+var z = x + y
 `
 
-	scope := tick.NewScope()
+	scope := stateful.NewScope()
 	err := tick.Evaluate(script, scope)
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +222,7 @@ var m = !n
 			t.Errorf("unexpected y value: exp %v got %v", exp, got)
 		}
 	} else {
-		t.Errorf("unexpected y value type: exp time.Duration got %T", x)
+		t.Errorf("unexpected y value type: exp time.Duration got %T", y)
 	}
 
 	n, err := scope.Get("n")
@@ -245,6 +249,98 @@ var m = !n
 		t.Errorf("unexpected m value type: exp bool got %T", x)
 	}
 
+	z, err := scope.Get("z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := z.(time.Duration); ok {
+		if exp, got := time.Duration(0), value; exp != got {
+			t.Errorf("unexpected z value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected z value type: exp time.Duration got %T", z)
+	}
+}
+
+func TestEvaluate_Vars_AllTypes(t *testing.T) {
+	script := `
+var str = 'this is a string'
+var strA = str + ' concat'
+
+var integer = 42
+var intergerMath = (integer * 2) - ( 6 * 9 ) + (36 / 3)
+
+var float = 3.14
+var tastyPie = float * 42.0
+
+var intFloat = int(sqrt(float)) * 3
+
+var duration = 5m
+var later = duration + 1m
+
+var regex = /.*/
+
+
+var boolean = TRUE
+var f = boolean AND FALSE
+
+
+`
+
+	scope := stateful.NewScope()
+	err := tick.Evaluate(script, scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exp := map[string]interface{}{
+		"str":          "this is a string",
+		"strA":         "this is a string concat",
+		"integer":      int64(42),
+		"intergerMath": int64(42),
+		"float":        3.14,
+		"tastyPie":     3.14 * 42.0,
+		"intFloat":     int64(3),
+		"duration":     5 * time.Minute,
+		"later":        6 * time.Minute,
+		"regex":        regexp.MustCompile(".*"),
+		"boolean":      true,
+		"f":            false,
+	}
+
+	for name, value := range exp {
+		if got, err := scope.Get(name); err != nil {
+			t.Errorf("unexpected error for %s: %s", name, err)
+		} else if !reflect.DeepEqual(got, value) {
+			t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
+		}
+	}
+
+}
+
+func TestEvaluate_Vars_Immutable(t *testing.T) {
+	script := `
+var x = 3m
+var x = 2m
+`
+
+	scope := stateful.NewScope()
+	err := tick.Evaluate(script, scope)
+	if exp, got := "attempted to redefine x, vars are immutable", err.Error(); exp != got {
+		t.Errorf("unexpected error message: got %s exp %s", got, exp)
+	}
+
+	x, err := scope.Get("x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := x.(time.Duration); ok {
+		if exp, got := time.Minute*3, value; exp != got {
+			t.Errorf("unexpected x value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected x value type: exp time.Duration got %T", x)
+	}
 }
 
 // Test that using the wrong chain operator fails
@@ -255,7 +351,7 @@ var s2 = a.structB()
 			.field2(42)
 `
 
-	scope := tick.NewScope()
+	scope := stateful.NewScope()
 	a := &structA{}
 	scope.Set("a", a)
 

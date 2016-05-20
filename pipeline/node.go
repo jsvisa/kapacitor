@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 )
 
 // The type of data that travels along an edge connecting two nodes in a Pipeline.
@@ -258,26 +258,26 @@ const intervalMarker = "INTERVAL"
 //    //Do normal processing of data
 //    data...
 //
-func (n *node) Deadman(threshold float64, interval time.Duration, expr ...tick.Node) *AlertNode {
+func (n *node) Deadman(threshold float64, interval time.Duration, expr ...ast.Node) *AlertNode {
 	dn := n.Stats(interval).
 		Derivative("emitted").NonNegative()
 	dn.Unit = interval
 
 	an := dn.Alert()
-	critExpr := &tick.BinaryNode{
-		Operator: tick.TokenLessEqual,
-		Left: &tick.ReferenceNode{
+	critExpr := &ast.BinaryNode{
+		Operator: ast.TokenLessEqual,
+		Left: &ast.ReferenceNode{
 			Reference: "emitted",
 		},
-		Right: &tick.NumberNode{
+		Right: &ast.NumberNode{
 			IsFloat: true,
 			Float64: threshold,
 		},
 	}
 	// Add any additional expressions
 	for _, e := range expr {
-		critExpr = &tick.BinaryNode{
-			Operator: tick.TokenAnd,
+		critExpr = &ast.BinaryNode{
+			Operator: ast.TokenAnd,
 			Left:     critExpr,
 			Right:    e,
 		}
@@ -308,7 +308,7 @@ func newBasicChainNode(desc string, wants, provides EdgeType) chainnode {
 }
 
 // Create a new node that filters the data stream by a given expression.
-func (n *chainnode) Where(expression tick.Node) *WhereNode {
+func (n *chainnode) Where(expression ast.Node) *WhereNode {
 	w := newWhereNode(n.provides, expression)
 	n.linkChild(w)
 	return w
@@ -356,7 +356,7 @@ func (n *chainnode) Join(others ...Node) *JoinNode {
 // Create an eval node that will evaluate the given transformation function to each data point.
 //  A list of expressions may be provided and will be evaluated in the order they are given
 // and results of previous expressions are made available to later expressions.
-func (n *chainnode) Eval(expressions ...tick.Node) *EvalNode {
+func (n *chainnode) Eval(expressions ...ast.Node) *EvalNode {
 	e := newEvalNode(n.provides, expressions)
 	n.linkChild(e)
 	return e

@@ -1,6 +1,7 @@
-package tick
+package ast
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -520,5 +521,23 @@ func TestLexer(t *testing.T) {
 
 	for _, tc := range cases {
 		test(tc)
+	}
+}
+
+func Test_TokenType_String(t *testing.T) {
+	for i := TokenType(0); i < end_tok_operator; i++ {
+		if i == begin_tok_operator ||
+			i == begin_tok_operator_math ||
+			i == end_tok_operator_math ||
+			i == begin_tok_operator_logic ||
+			i == end_tok_operator_logic ||
+			i == begin_tok_operator_comp ||
+			i == end_tok_operator_comp {
+			continue
+		}
+		_, err := strconv.ParseInt(i.String(), 10, 64)
+		if err == nil {
+			t.Errorf("expected string format of token type %d. Please add token type to TokenType.String method", i)
+		}
 	}
 }

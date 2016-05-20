@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
 // Information relavant to configuring a deadman's swith
@@ -29,7 +30,7 @@ type Pipeline struct {
 
 // Create a pipeline from a given script.
 // tick:ignore
-func CreatePipeline(script string, sourceEdge EdgeType, scope *tick.Scope, deadman DeadmanService) (*Pipeline, error) {
+func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService) (*Pipeline, error) {
 	p := &Pipeline{
 		deadman: deadman,
 	}
