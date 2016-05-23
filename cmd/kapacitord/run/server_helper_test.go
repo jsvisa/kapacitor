@@ -162,8 +162,8 @@ func NewConfig() *run.Config {
 	c.Storage.BoltDBPath = MustTempFile()
 	c.DataDir = MustTempFile()
 	c.HTTP.BindAddress = "127.0.0.1:0"
-	c.HTTP.BindAddress = "127.0.0.1:9092"
-	c.HTTP.GZIP = false
+	//c.HTTP.BindAddress = "127.0.0.1:9092"
+	//c.HTTP.GZIP = false
 	c.InfluxDB[0].Enabled = false
 	return c
 }

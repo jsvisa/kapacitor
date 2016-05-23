@@ -112,7 +112,7 @@ func TestExpression_BinaryNode_DynamicTestCases(t *testing.T) {
 			{
 				IsEvalNum:      true,
 				Value:          int64(5),
-				ExpectedError:  errors.New("mismatched type to binary operator. got int64 + float64. see bool(), int(), float(), string()"),
+				ExpectedError:  errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string()"),
 				ExpectedResult: nil,
 			},
 		},

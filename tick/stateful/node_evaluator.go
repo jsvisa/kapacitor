@@ -12,8 +12,8 @@ import (
 // ErrTypeGuardFailed is returned when a speicifc value type is requested thorugh NodeEvaluator (for example: "Float64Value")
 // when the node doesn't support the given type, for example "Float64Value" is called on BoolNode
 type ErrTypeGuardFailed struct {
-	RequestedType ValueType
-	ActualType    ValueType
+	RequestedType ast.ValueType
+	ActualType    ast.ValueType
 }
 
 func (e ErrTypeGuardFailed) Error() string {
@@ -35,8 +35,8 @@ type NodeEvaluator interface {
 	EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error)
 	EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error)
 
-	// Type returns the type of ValueType
-	Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error)
+	// Type returns the type of ast.ValueType
+	Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error)
 }
 
 func createNodeEvaluator(n ast.Node) (NodeEvaluator, error) {
@@ -80,4 +80,62 @@ func createNodeEvaluator(n ast.Node) (NodeEvaluator, error) {
 	}
 
 	return nil, fmt.Errorf("Given node type is not valid evaluation node: %T", n)
+}
+
+// getCostantNodeType - Given a ast.Node we want to know it's return type
+// this method does exactly this, few examples:
+// *) StringNode -> ast.TString
+// *) UnaryNode -> we base the type by the node type
+func getConstantNodeType(n ast.Node) ast.ValueType {
+	switch node := n.(type) {
+	case *ast.NumberNode:
+		if node.IsInt {
+			return ast.TInt
+		}
+
+		if node.IsFloat {
+			return ast.TFloat
+		}
+	case *ast.DurationNode:
+		return ast.TDuration
+	case *ast.StringNode:
+		return ast.TString
+	case *ast.BoolNode:
+		return ast.TBool
+	case *ast.RegexNode:
+		return ast.TRegex
+
+	case *ast.UnaryNode:
+		// If this is comparison operator we know for sure the output must be boolean
+		if node.Operator == ast.TokenNot {
+			return ast.TBool
+		}
+
+		// Could be float int or duration
+		if node.Operator == ast.TokenMinus {
+			return getConstantNodeType(node.Node)
+		}
+
+	case *ast.BinaryNode:
+		leftType := getConstantNodeType(node.Left)
+		rightType := getConstantNodeType(node.Right)
+		return binaryConstantTypes[operationKey{operator: node.Operator, leftType: leftType, rightType: rightType}]
+	}
+
+	return ast.InvalidType
+}
+
+func isDynamicNode(n ast.Node) bool {
+	switch node := n.(type) {
+	case *ast.ReferenceNode:
+		return true
+	case *ast.FunctionNode:
+		return true
+	case *ast.UnaryNode:
+		return isDynamicNode(node.Node)
+	case *ast.BinaryNode:
+		return isDynamicNode(node.Left) || isDynamicNode(node.Right)
+	default:
+		return false
+	}
 }

@@ -25,13 +25,13 @@ func (n *EvalReferenceNode) getReferenceValue(scope *Scope, executionState Execu
 	return value, nil
 }
 
-func (n *EvalReferenceNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error) {
+func (n *EvalReferenceNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error) {
 	value, err := n.getReferenceValue(scope.(*Scope), executionState)
 	if err != nil {
-		return InvalidType, err
+		return ast.InvalidType, err
 	}
 
-	return valueTypeOf(value), nil
+	return ast.TypeOf(value), nil
 }
 
 func (n *EvalReferenceNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
@@ -44,7 +44,7 @@ func (n *EvalReferenceNode) EvalRegex(scope *Scope, executionState ExecutionStat
 		return regexValue, nil
 	}
 
-	return nil, ErrTypeGuardFailed{RequestedType: TRegex, ActualType: valueTypeOf(refValue)}
+	return nil, ErrTypeGuardFailed{RequestedType: ast.TRegex, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
@@ -57,7 +57,7 @@ func (n *EvalReferenceNode) EvalTime(scope *Scope, executionState ExecutionState
 		return timeValue, nil
 	}
 
-	return time.Time{}, ErrTypeGuardFailed{RequestedType: TTime, ActualType: valueTypeOf(refValue)}
+	return time.Time{}, ErrTypeGuardFailed{RequestedType: ast.TTime, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
@@ -70,7 +70,7 @@ func (n *EvalReferenceNode) EvalDuration(scope *Scope, executionState ExecutionS
 		return durValue, nil
 	}
 
-	return 0, ErrTypeGuardFailed{RequestedType: TDuration, ActualType: valueTypeOf(refValue)}
+	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalString(scope *Scope, executionState ExecutionState) (string, error) {
@@ -83,7 +83,7 @@ func (n *EvalReferenceNode) EvalString(scope *Scope, executionState ExecutionSta
 		return stringValue, nil
 	}
 
-	return "", ErrTypeGuardFailed{RequestedType: TString, ActualType: valueTypeOf(refValue)}
+	return "", ErrTypeGuardFailed{RequestedType: ast.TString, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalFloat(scope *Scope, executionState ExecutionState) (float64, error) {
@@ -96,7 +96,7 @@ func (n *EvalReferenceNode) EvalFloat(scope *Scope, executionState ExecutionStat
 		return float64Value, nil
 	}
 
-	return float64(0), ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: valueTypeOf(refValue)}
+	return float64(0), ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
@@ -109,7 +109,7 @@ func (n *EvalReferenceNode) EvalInt(scope *Scope, executionState ExecutionState)
 		return int64Value, nil
 	}
 
-	return int64(0), ErrTypeGuardFailed{RequestedType: TInt64, ActualType: valueTypeOf(refValue)}
+	return int64(0), ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: ast.TypeOf(refValue)}
 }
 
 func (n *EvalReferenceNode) EvalBool(scope *Scope, executionState ExecutionState) (bool, error) {
@@ -122,5 +122,5 @@ func (n *EvalReferenceNode) EvalBool(scope *Scope, executionState ExecutionState
 		return boolValue, nil
 	}
 
-	return false, ErrTypeGuardFailed{RequestedType: TBool, ActualType: valueTypeOf(refValue)}
+	return false, ErrTypeGuardFailed{RequestedType: ast.TBool, ActualType: ast.TypeOf(refValue)}
 }

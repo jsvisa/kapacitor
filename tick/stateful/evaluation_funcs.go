@@ -9,8 +9,8 @@ import (
 
 type operationKey struct {
 	operator  ast.TokenType
-	leftType  ValueType
-	rightType ValueType
+	leftType  ast.ValueType
+	rightType ast.ValueType
 }
 
 var boolTrueResultContainer = resultContainer{BoolValue: true, IsBoolValue: true}
@@ -19,15 +19,15 @@ var emptyResultContainer = resultContainer{}
 
 type evaluationFnInfo struct {
 	f          evaluationFn
-	returnType ValueType
+	returnType ast.ValueType
 }
 
 // Constant return types of all binary operations
-var binaryConstantTypes map[operationKey]ValueType
+var binaryConstantTypes map[operationKey]ast.ValueType
 
 func init() {
 	// Populate binaryConstantTypes from the evaluationFuncs map
-	binaryConstantTypes = make(map[operationKey]ValueType, len(evaluationFuncs))
+	binaryConstantTypes = make(map[operationKey]ast.ValueType, len(evaluationFuncs))
 	for opKey, info := range evaluationFuncs {
 		binaryConstantTypes[opKey] = info.returnType
 	}
@@ -37,7 +37,7 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 	// -----------------------------------------
 	//	Comparison evaluation funcs
 
-	operationKey{operator: ast.TokenAnd, leftType: TBool, rightType: TBool}: {
+	operationKey{operator: ast.TokenAnd, leftType: ast.TBool, rightType: ast.TBool}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left bool
 			var right bool
@@ -59,10 +59,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left && right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenOr, leftType: TBool, rightType: TBool}: {
+	operationKey{operator: ast.TokenOr, leftType: ast.TBool, rightType: ast.TBool}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left bool
 			var right bool
@@ -84,10 +84,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left || right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TBool, rightType: TBool}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TBool, rightType: ast.TBool}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left bool
 			var right bool
@@ -103,10 +103,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{BoolValue: left == right, IsBoolValue: true}, nil
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TBool, rightType: TBool}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TBool, rightType: ast.TBool}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left bool
 			var right bool
@@ -122,10 +122,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{BoolValue: left != right, IsBoolValue: true}, nil
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -142,10 +142,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left < right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -162,10 +162,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left <= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -182,10 +182,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) != right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -202,10 +202,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left >= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -222,10 +222,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left == right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -242,10 +242,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left != right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -262,10 +262,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left != right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -282,10 +282,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left <= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -302,10 +302,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left == right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreater, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -322,10 +322,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left > right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreater, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -342,10 +342,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left > float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -362,10 +362,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left >= float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -382,10 +382,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left == float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -402,10 +402,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) <= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -422,10 +422,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) == right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -442,10 +442,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left != float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -462,10 +462,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left < float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -482,10 +482,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left < right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -502,10 +502,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left >= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreater, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -522,10 +522,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left > right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TFloat64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TFloat, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right int64
@@ -542,10 +542,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left <= float64(right), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -562,10 +562,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) >= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreater, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -582,10 +582,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) > right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TInt64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TInt, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right float64
@@ -602,10 +602,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: float64(left) < right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreater, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -622,10 +622,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left > right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -642,10 +642,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left >= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -662,10 +662,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left < right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -682,10 +682,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left <= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -702,10 +702,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left == right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -722,10 +722,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left != right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenRegexNotEqual, leftType: TString, rightType: TRegex}: {
+	operationKey{operator: ast.TokenRegexNotEqual, leftType: ast.TString, rightType: ast.TRegex}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right *regexp.Regexp
@@ -742,10 +742,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: !right.MatchString(left), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenRegexEqual, leftType: TString, rightType: TRegex}: {
+	operationKey{operator: ast.TokenRegexEqual, leftType: ast.TString, rightType: ast.TRegex}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right *regexp.Regexp
@@ -762,10 +762,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: right.MatchString(left), IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenEqual, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenEqual, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -782,10 +782,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left == right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenNotEqual, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenNotEqual, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -802,9 +802,9 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left != right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
-	operationKey{operator: ast.TokenGreater, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenGreater, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -821,10 +821,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left > right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenGreaterEqual, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenGreaterEqual, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -841,10 +841,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left >= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLess, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenLess, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -861,10 +861,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left < right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
-	operationKey{operator: ast.TokenLessEqual, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenLessEqual, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -881,13 +881,13 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 			return resultContainer{BoolValue: left <= right, IsBoolValue: true}, nil
 
 		},
-		returnType: TBool,
+		returnType: ast.TBool,
 	},
 
 	// -----------------------------------------
 	//	Math evaluation funcs
 
-	operationKey{operator: ast.TokenPlus, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenPlus, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -903,10 +903,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Float64Value: left + right, IsFloat64Value: true}, nil
 		},
-		returnType: TFloat64,
+		returnType: ast.TFloat,
 	},
 
-	operationKey{operator: ast.TokenMinus, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenMinus, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -922,10 +922,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Float64Value: left - right, IsFloat64Value: true}, nil
 		},
-		returnType: TFloat64,
+		returnType: ast.TFloat,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -941,10 +941,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Float64Value: left * right, IsFloat64Value: true}, nil
 		},
-		returnType: TFloat64,
+		returnType: ast.TFloat,
 	},
 
-	operationKey{operator: ast.TokenDiv, leftType: TFloat64, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenDiv, leftType: ast.TFloat, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right float64
@@ -960,10 +960,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Float64Value: left / right, IsFloat64Value: true}, nil
 		},
-		returnType: TFloat64,
+		returnType: ast.TFloat,
 	},
 
-	operationKey{operator: ast.TokenPlus, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenPlus, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -979,10 +979,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Int64Value: left + right, IsInt64Value: true}, nil
 		},
-		returnType: TInt64,
+		returnType: ast.TInt,
 	},
 
-	operationKey{operator: ast.TokenMinus, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenMinus, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -998,10 +998,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Int64Value: left - right, IsInt64Value: true}, nil
 		},
-		returnType: TInt64,
+		returnType: ast.TInt,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -1017,10 +1017,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Int64Value: left * right, IsInt64Value: true}, nil
 		},
-		returnType: TInt64,
+		returnType: ast.TInt,
 	},
 
-	operationKey{operator: ast.TokenDiv, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenDiv, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -1036,10 +1036,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Int64Value: left / right, IsInt64Value: true}, nil
 		},
-		returnType: TInt64,
+		returnType: ast.TInt,
 	},
 
-	operationKey{operator: ast.TokenMod, leftType: TInt64, rightType: TInt64}: {
+	operationKey{operator: ast.TokenMod, leftType: ast.TInt, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right int64
@@ -1055,10 +1055,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{Int64Value: left % right, IsInt64Value: true}, nil
 		},
-		returnType: TInt64,
+		returnType: ast.TInt,
 	},
 
-	operationKey{operator: ast.TokenPlus, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenPlus, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -1074,10 +1074,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: left + right, IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenMinus, leftType: TDuration, rightType: TDuration}: {
+	operationKey{operator: ast.TokenMinus, leftType: ast.TDuration, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right time.Duration
@@ -1093,10 +1093,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: left - right, IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TDuration, rightType: TInt64}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TDuration, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right int64
@@ -1112,10 +1112,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: left * time.Duration(right), IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TInt64, rightType: TDuration}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TInt, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left int64
 			var right time.Duration
@@ -1131,10 +1131,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: time.Duration(left) * right, IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TDuration, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TDuration, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right float64
@@ -1150,10 +1150,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: time.Duration(float64(left) * right), IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenMult, leftType: TFloat64, rightType: TDuration}: {
+	operationKey{operator: ast.TokenMult, leftType: ast.TFloat, rightType: ast.TDuration}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left float64
 			var right time.Duration
@@ -1169,10 +1169,10 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: time.Duration(left * float64(right)), IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
-	operationKey{operator: ast.TokenDiv, leftType: TDuration, rightType: TInt64}: {
+	operationKey{operator: ast.TokenDiv, leftType: ast.TDuration, rightType: ast.TInt}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right int64
@@ -1188,9 +1188,9 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: left / time.Duration(right), IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
-	operationKey{operator: ast.TokenDiv, leftType: TDuration, rightType: TFloat64}: {
+	operationKey{operator: ast.TokenDiv, leftType: ast.TDuration, rightType: ast.TFloat}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left time.Duration
 			var right float64
@@ -1206,13 +1206,13 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{DurationValue: time.Duration(float64(left) / right), IsDurationValue: true}, nil
 		},
-		returnType: TDuration,
+		returnType: ast.TDuration,
 	},
 
 	// -----------------------------------------
 	//	String concatenation func
 
-	operationKey{operator: ast.TokenPlus, leftType: TString, rightType: TString}: {
+	operationKey{operator: ast.TokenPlus, leftType: ast.TString, rightType: ast.TString}: {
 		f: func(scope *Scope, executionState ExecutionState, leftNode, rightNode NodeEvaluator) (resultContainer, *ErrSide) {
 			var left string
 			var right string
@@ -1228,6 +1228,6 @@ var evaluationFuncs = map[operationKey]*evaluationFnInfo{
 
 			return resultContainer{StringValue: left + right, IsStringValue: true}, nil
 		},
-		returnType: TString,
+		returnType: ast.TString,
 	},
 }

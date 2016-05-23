@@ -76,6 +76,10 @@ type Task struct {
 func (t *Task) Dot() []byte {
 	return t.Pipeline.Dot(t.ID)
 }
+func (t *Task) Vars() map[string]Var {
+	return nil
+	//return t.Pipeline.Vars()
+}
 
 // returns all the measurements from a FromNode
 func (t *Task) Measurements() []string {

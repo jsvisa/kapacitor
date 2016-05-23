@@ -4686,7 +4686,7 @@ func testStreamer(
 	tm.Open()
 
 	//Create the task
-	task, err := tm.NewTask(name, script, kapacitor.StreamTask, dbrps, 0)
+	task, err := tm.NewTask(name, script, kapacitor.StreamTask, dbrps, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

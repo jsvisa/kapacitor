@@ -777,6 +777,11 @@ definitions:
       script:
         description: TICKscript content
         type: string
+      vars:
+        description: Set of variables from the TICKscript with their type and default value.
+        type: object
+        additionalProperties:
+          $ref: "#/definitions/Var"
       dot:
         description: Graphviz DOT syntax representation of the template DAG
         type: string

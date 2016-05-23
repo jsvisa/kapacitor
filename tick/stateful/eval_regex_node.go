@@ -11,8 +11,8 @@ type EvalRegexNode struct {
 	Node *ast.RegexNode
 }
 
-func (n *EvalRegexNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error) {
-	return TRegex, nil
+func (n *EvalRegexNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error) {
+	return ast.TRegex, nil
 }
 
 func (n *EvalRegexNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
@@ -20,23 +20,23 @@ func (n *EvalRegexNode) EvalRegex(scope *Scope, executionState ExecutionState) (
 }
 
 func (n *EvalRegexNode) EvalString(scope *Scope, executionState ExecutionState) (string, error) {
-	return "", ErrTypeGuardFailed{RequestedType: TString, ActualType: TRegex}
+	return "", ErrTypeGuardFailed{RequestedType: ast.TString, ActualType: ast.TRegex}
 }
 
 func (n *EvalRegexNode) EvalFloat(scope *Scope, executionState ExecutionState) (float64, error) {
-	return float64(0), ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: TRegex}
+	return float64(0), ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: ast.TRegex}
 }
 
 func (n *EvalRegexNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
-	return int64(0), ErrTypeGuardFailed{RequestedType: TInt64, ActualType: TRegex}
+	return int64(0), ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: ast.TRegex}
 }
 
 func (n *EvalRegexNode) EvalBool(scope *Scope, executionState ExecutionState) (bool, error) {
-	return false, ErrTypeGuardFailed{RequestedType: TBool, ActualType: TRegex}
+	return false, ErrTypeGuardFailed{RequestedType: ast.TBool, ActualType: ast.TRegex}
 }
 func (n *EvalRegexNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
-	return time.Time{}, ErrTypeGuardFailed{RequestedType: TTime, ActualType: TRegex}
+	return time.Time{}, ErrTypeGuardFailed{RequestedType: ast.TTime, ActualType: ast.TRegex}
 }
 func (n *EvalRegexNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
-	return 0, ErrTypeGuardFailed{RequestedType: TDuration, ActualType: TRegex}
+	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TRegex}
 }

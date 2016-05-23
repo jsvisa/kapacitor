@@ -521,7 +521,9 @@ func TestServer_CreateTemplate(t *testing.T) {
 
 	id := "testTemplateID"
 	ttype := client.StreamTask
-	tick := `stream
+	tick := `var x = 5
+
+stream
     |from()
         .measurement('test')
 `
@@ -549,11 +551,15 @@ func TestServer_CreateTemplate(t *testing.T) {
 		t.Fatalf("unexpected type got %v exp %v", ti.Type, client.StreamTask)
 	}
 	if ti.TICKscript != tick {
-		t.Fatalf("unexpected TICKscript got %s exp %s", ti.TICKscript, tick)
+		t.Fatalf("unexpected TICKscript got\n%s\nexp\n%s\n", ti.TICKscript, tick)
 	}
 	dot := "digraph testTemplateID {\nstream0 -> from1;\n}"
 	if ti.Dot != dot {
 		t.Fatalf("unexpected dot\ngot\n%s\nexp\n%s\n", ti.Dot, dot)
+	}
+	vars := client.Vars{"x": {Value: int64(5), Type: client.VarInt}}
+	if !reflect.DeepEqual(vars, ti.Vars) {
+		t.Fatalf("unexpected vars\ngot\n%s\nexp\n%s\n", ti.Vars, vars)
 	}
 }
 
@@ -640,8 +646,11 @@ stream
 			RetentionPolicy: "default",
 		},
 	}
-	vars := map[string]interface{}{
-		"measurement": "test",
+	vars := client.Vars{
+		"measurement": {
+			Value: "test",
+			Type:  client.VarString,
+		},
 	}
 
 	task, err := cli.CreateTask(client.CreateTaskOptions{

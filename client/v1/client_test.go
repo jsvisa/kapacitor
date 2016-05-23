@@ -876,7 +876,8 @@ func Test_Template(t *testing.T) {
 			fmt.Fprintf(w, `{
 	"link": {"rel":"self", "href":"/kapacitor/v1/templates/t1"},
 	"type":"stream",
-	"script":"stream\n    |from()\n        .measurement('cpu')\n",
+	"script":"var x = 5\nstream\n    |from()\n        .measurement('cpu')\n",
+    "vars": {"x":{"value": 5, "type":"int"}},
 	"dot": "digraph t1 {}",
 	"error": ""
 }`)
@@ -897,12 +898,19 @@ func Test_Template(t *testing.T) {
 	exp := client.Template{
 		Link: client.Link{Relation: client.Self, Href: "/kapacitor/v1/templates/t1"},
 		Type: client.StreamTask,
-		TICKscript: `stream
+		TICKscript: `var x = 5
+stream
     |from()
         .measurement('cpu')
 `,
 		Dot:   "digraph t1 {}",
 		Error: "",
+		Vars: client.Vars{
+			"x": {
+				Type:  client.VarInt,
+				Value: int64(5),
+			},
+		},
 	}
 	if !reflect.DeepEqual(exp, template) {
 		t.Errorf("unexpected template:\ngot:\n%v\nexp:\n%v", template, exp)

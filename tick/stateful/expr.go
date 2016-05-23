@@ -85,31 +85,31 @@ func (se *expression) Eval(scope *Scope) (interface{}, error) {
 	}
 
 	switch typ {
-	case TInt64:
+	case ast.TInt:
 		result, err := se.EvalInt(scope)
 		if err != nil {
 			return nil, err
 		}
 		return result, err
-	case TFloat64:
+	case ast.TFloat:
 		result, err := se.EvalFloat(scope)
 		if err != nil {
 			return nil, err
 		}
 		return result, err
-	case TString:
+	case ast.TString:
 		result, err := se.EvalString(scope)
 		if err != nil {
 			return nil, err
 		}
 		return result, err
-	case TBool:
+	case ast.TBool:
 		result, err := se.EvalBool(scope)
 		if err != nil {
 			return nil, err
 		}
 		return result, err
-	case TDuration:
+	case ast.TDuration:
 		result, err := se.EvalDuration(scope)
 		if err != nil {
 			return nil, err

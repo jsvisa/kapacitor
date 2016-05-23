@@ -554,12 +554,13 @@ To get information about a template make a GET request to the `/kapacitor/v1/tem
 
 A template has these read only properties in addition to the properties listed [above](#define-template).
 
-| Property     | Description                                                                                                                                                                                                         |
-| --------     | -----------                                                                                                                                                                                                         |
-| dot          | [GraphViz DOT](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) syntax formatted representation of the template DAG. NOTE: lables vs attributes does not matter since a template is never executing. |
-| error        | Any error encountered when reading the template.                                                                                                                                                                      |
-| created      | Date the template was first created                                                                                                                                                                                     |
-| modified     | Date the template was last modified                                                                                                                                                                                     |
+| Property | Description                                                                                                                                                                                                         |
+| -------- | -----------                                                                                                                                                                                                         |
+| vars     | Set of named vars from the TICKscript with their type and default values.                                                                                                                                           |
+| dot      | [GraphViz DOT](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) syntax formatted representation of the template DAG. NOTE: lables vs attributes does not matter since a template is never executing. |
+| error    | Any error encountered when reading the template.                                                                                                                                                                    |
+| created  | Date the template was first created                                                                                                                                                                                 |
+| modified | Date the template was last modified                                                                                                                                                                                 |
 
 #### Example
 
@@ -574,7 +575,8 @@ GET /kapacitor/v1/templates/TEMPLATE_ID
     "link" : {"rel": "self", "href": "/kapacitor/v1/templates/TEMPLATE_ID"},
     "id" : "TASK_ID",
     "type" : "stream",
-    "script" : "stream\n    |from()\n        .measurement('cpu')\n",
+    "script" : "var x = 5\nstream\n    |from()\n        .measurement('cpu')\n",
+    "vars": {"x":{"value": 5, "type":"int"}},
     "dot" : "digraph TASK_ID { ... }",
     "error" : "",
     "created": "2006-01-02T15:04:05Z07:00",

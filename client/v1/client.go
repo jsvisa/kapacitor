@@ -444,6 +444,7 @@ type Template struct {
 	ID         string    `json:"id"`
 	Type       TaskType  `json:"type"`
 	TICKscript string    `json:"script"`
+	Vars       Vars      `json:"vars"`
 	Dot        string    `json:"dot"`
 	Error      string    `json:"error"`
 	Created    time.Time `json:"created"`

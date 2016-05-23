@@ -153,7 +153,7 @@ func TestEvalUnaryNode_EvalInt64_FailedToEvaluateNode(t *testing.T) {
 
 	result, err := evaluator.EvalInt(stateful.NewScope(), stateful.CreateExecutionState())
 
-	expectedError := errors.New("TypeGuard: expression returned unexpected type boolean, expected int64")
+	expectedError := errors.New("TypeGuard: expression returned unexpected type boolean, expected int")
 
 	if err == nil && result != int64(0) {
 		t.Errorf("Expected an error, but got nil error and result: %v", result)

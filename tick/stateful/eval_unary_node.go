@@ -10,7 +10,7 @@ import (
 
 type EvalUnaryNode struct {
 	nodeEvaluator NodeEvaluator
-	returnType    ValueType
+	returnType    ast.ValueType
 }
 
 func NewEvalUnaryNode(unaryNode *ast.UnaryNode) (*EvalUnaryNode, error) {
@@ -33,8 +33,8 @@ func isValidUnaryOperator(operator ast.TokenType) bool {
 	return operator == ast.TokenNot || operator == ast.TokenMinus
 }
 
-func (n *EvalUnaryNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ValueType, error) {
-	if n.returnType == InvalidType {
+func (n *EvalUnaryNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error) {
+	if n.returnType == ast.InvalidType {
 		// We are dynamic and we need to figure out our type
 		// Do NOT cache this result in n.returnType since it can change.
 		return n.nodeEvaluator.Type(scope, executionState)
@@ -43,11 +43,11 @@ func (n *EvalUnaryNode) Type(scope ReadOnlyScope, executionState ExecutionState)
 }
 
 func (n *EvalUnaryNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
-	return nil, ErrTypeGuardFailed{RequestedType: TRegex, ActualType: n.returnType}
+	return nil, ErrTypeGuardFailed{RequestedType: ast.TRegex, ActualType: n.returnType}
 }
 
 func (n *EvalUnaryNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
-	return time.Time{}, ErrTypeGuardFailed{RequestedType: TTime, ActualType: n.returnType}
+	return time.Time{}, ErrTypeGuardFailed{RequestedType: ast.TTime, ActualType: n.returnType}
 }
 
 func (n *EvalUnaryNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
@@ -55,7 +55,7 @@ func (n *EvalUnaryNode) EvalDuration(scope *Scope, executionState ExecutionState
 	if err != nil {
 		return 0, err
 	}
-	if typ == TDuration {
+	if typ == ast.TDuration {
 		result, err := n.nodeEvaluator.EvalDuration(scope, executionState)
 		if err != nil {
 			return 0, err
@@ -64,11 +64,11 @@ func (n *EvalUnaryNode) EvalDuration(scope *Scope, executionState ExecutionState
 		return -1 * result, nil
 	}
 
-	return 0, ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: typ}
+	return 0, ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: typ}
 }
 
 func (n *EvalUnaryNode) EvalString(scope *Scope, executionState ExecutionState) (string, error) {
-	return "", ErrTypeGuardFailed{RequestedType: TString, ActualType: n.returnType}
+	return "", ErrTypeGuardFailed{RequestedType: ast.TString, ActualType: n.returnType}
 }
 
 func (n *EvalUnaryNode) EvalFloat(scope *Scope, executionState ExecutionState) (float64, error) {
@@ -76,7 +76,7 @@ func (n *EvalUnaryNode) EvalFloat(scope *Scope, executionState ExecutionState) (
 	if err != nil {
 		return 0, err
 	}
-	if typ == TFloat64 {
+	if typ == ast.TFloat {
 		result, err := n.nodeEvaluator.EvalFloat(scope, executionState)
 		if err != nil {
 			return 0, err
@@ -85,7 +85,7 @@ func (n *EvalUnaryNode) EvalFloat(scope *Scope, executionState ExecutionState) (
 		return -1 * result, nil
 	}
 
-	return 0, ErrTypeGuardFailed{RequestedType: TFloat64, ActualType: typ}
+	return 0, ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: typ}
 }
 
 func (n *EvalUnaryNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
@@ -93,7 +93,7 @@ func (n *EvalUnaryNode) EvalInt(scope *Scope, executionState ExecutionState) (in
 	if err != nil {
 		return 0, err
 	}
-	if typ == TInt64 {
+	if typ == ast.TInt {
 		result, err := n.nodeEvaluator.EvalInt(scope, executionState)
 		if err != nil {
 			return 0, err
@@ -102,7 +102,7 @@ func (n *EvalUnaryNode) EvalInt(scope *Scope, executionState ExecutionState) (in
 		return -1 * result, nil
 	}
 
-	return 0, ErrTypeGuardFailed{RequestedType: TInt64, ActualType: typ}
+	return 0, ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: typ}
 }
 
 func (n *EvalUnaryNode) EvalBool(scope *Scope, executionState ExecutionState) (bool, error) {
@@ -110,7 +110,7 @@ func (n *EvalUnaryNode) EvalBool(scope *Scope, executionState ExecutionState) (b
 	if err != nil {
 		return false, err
 	}
-	if typ == TBool {
+	if typ == ast.TBool {
 		result, err := n.nodeEvaluator.EvalBool(scope, executionState)
 		if err != nil {
 			return false, err
@@ -119,5 +119,5 @@ func (n *EvalUnaryNode) EvalBool(scope *Scope, executionState ExecutionState) (b
 		return !result, nil
 	}
 
-	return false, ErrTypeGuardFailed{RequestedType: TBool, ActualType: typ}
+	return false, ErrTypeGuardFailed{RequestedType: ast.TBool, ActualType: typ}
 }

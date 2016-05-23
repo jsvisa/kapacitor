@@ -234,7 +234,6 @@ func (tm *TaskMaster) NewTask(
 		Type:             tt,
 		DBRPs:            dbrps,
 		SnapshotInterval: snapshotInterval,
-		Vars:             vars,
 	}
 	scope := tm.CreateTICKScope()
 	for name, value := range vars {

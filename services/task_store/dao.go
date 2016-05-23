@@ -630,8 +630,8 @@ type Var struct {
 	Type VarType
 }
 
-func newVar(value interface{}, typ VarType) (*Var, error) {
-	g := &Var{
+func newVar(value interface{}, typ VarType) (Var, error) {
+	g := Var{
 		Type: typ,
 	}
 	switch v := value.(type) {
@@ -654,14 +654,14 @@ func newVar(value interface{}, typ VarType) (*Var, error) {
 		case VarString:
 			g.StringValue = v
 		default:
-			return nil, fmt.Errorf("unexpected var type %v, value is a string", typ)
+			return Var{}, fmt.Errorf("unexpected var type %v, value is a string", typ)
 		}
 		g.Type = typ
 	default:
-		return nil, fmt.Errorf("unsupported Var type %T, only int, float, string and bool are supported.", value)
+		return Var{}, fmt.Errorf("unsupported Var type %T, only int, float, string and bool are supported.", value)
 	}
 	if g.Type != typ {
-		return fmt.Errorf("mismatched type and value: %T %v", value, typ)
+		return Var{}, fmt.Errorf("mismatched type and value: %T %v", value, typ)
 	}
 	return g, nil
 }

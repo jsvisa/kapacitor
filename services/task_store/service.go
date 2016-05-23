@@ -52,7 +52,7 @@ type Service struct {
 			tt kapacitor.TaskType,
 			dbrps []kapacitor.DBRP,
 			snapshotInterval time.Duration,
-			vars map[string]interface{},
+			vars map[string]kapacitor.Var,
 		) (*kapacitor.Task, error)
 		StartTask(t *kapacitor.Task) (*kapacitor.ExecutingTask, error)
 		StopTask(name string) error
@@ -531,37 +531,10 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	vars := make(client.Vars, len(raw.Vars))
-	for name, value := range raw.Vars {
-		var v interface{}
-		var typ client.VarType
-		switch value.Type {
-		case VarBool:
-			v = value.BoolValue
-			typ = client.VarBool
-		case VarInt:
-			v = value.IntValue
-			typ = client.VarInt
-		case VarFloat:
-			v = value.FloatValue
-			typ = client.VarFloat
-		case VarDuration:
-			v = value.DurationValue
-			typ = client.VarDuration
-		case VarString:
-			v = value.StringValue
-			typ = client.VarString
-		case VarRegex:
-			v = value.RegexValue
-			typ = client.VarRegex
-		default:
-			httpd.HttpError(w, fmt.Sprintf("invalid task var recorded in db: name %s var %v", name, value), true, http.StatusInternalServerError)
-			return
-		}
-		vars[name] = client.Var{
-			Value: v,
-			Type:  typ,
-		}
+	vars, err := ts.convertToClientVars(raw.Vars)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
+		return
 	}
 
 	info := client.Task{
@@ -850,29 +823,10 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set vars
-	newTask.Vars = make(map[string]Var, len(task.Vars))
-	for name, value := range task.Vars {
-		var typ VarType
-		switch value.Type {
-		case client.VarBool:
-			typ = VarBool
-		case client.VarInt:
-			typ = VarInt
-		case client.VarFloat:
-			typ = VarFloat
-		case client.VarString:
-			typ = VarString
-		case client.VarRegex:
-			typ = VarRegex
-		case client.VarDuration:
-			typ = VarDuration
-		}
-		v, err := newVar(value, typ)
-		if err != nil {
-			httpd.HttpError(w, fmt.Sprintf("invalid vars value for %s: %s", name, err), true, http.StatusBadRequest)
-			return
-		}
-		newTask.Vars[name] = v
+	newTask.Vars, err = ts.convertToServiceVars(task.Vars)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+		return
 	}
 
 	// Validate task
@@ -936,7 +890,6 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(httpd.MarshalJSON(t, true))
 }
-
 func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	id, err := ts.taskIDFromPath(r.URL.Path)
 	if err != nil {
@@ -1005,14 +958,10 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	statusChanged := previousStatus != existing.Status
 
 	// Set vars
-	existing.Vars = make(map[string]*gobber, len(task.Vars))
-	for name, value := range task.Vars {
-		g, err := newGobber(value)
-		if err != nil {
-			httpd.HttpError(w, fmt.Sprintf("invalid vars value for %s: %s", name, err), true, http.StatusBadRequest)
-			return
-		}
-		existing.Vars[name] = g
+	existing.Vars, err = ts.convertToServiceVars(task.Vars)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+		return
 	}
 
 	// Validate task
@@ -1048,6 +997,96 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ts *Service) convertToServiceVars(cvars client.Vars) (map[string]Var, error) {
+	vars := make(map[string]Var, len(cvars))
+	for name, value := range cvars {
+		var typ VarType
+		switch value.Type {
+		case client.VarBool:
+			typ = VarBool
+		case client.VarInt:
+			typ = VarInt
+		case client.VarFloat:
+			typ = VarFloat
+		case client.VarString:
+			typ = VarString
+		case client.VarRegex:
+			typ = VarRegex
+		case client.VarDuration:
+			typ = VarDuration
+		}
+		v, err := newVar(value, typ)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid var %s value %v", name, value)
+		}
+		vars[name] = v
+	}
+	return vars, nil
+}
+
+func (ts *Service) convertToClientVars(svars map[string]Var) (client.Vars, error) {
+	vars := make(client.Vars, len(svars))
+	for name, value := range svars {
+		var v interface{}
+		var typ client.VarType
+		switch value.Type {
+		case VarBool:
+			v = value.BoolValue
+			typ = client.VarBool
+		case VarInt:
+			v = value.IntValue
+			typ = client.VarInt
+		case VarFloat:
+			v = value.FloatValue
+			typ = client.VarFloat
+		case VarDuration:
+			v = value.DurationValue
+			typ = client.VarDuration
+		case VarString:
+			v = value.StringValue
+			typ = client.VarString
+		case VarRegex:
+			v = value.RegexValue
+			typ = client.VarRegex
+		default:
+			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		}
+		vars[name] = client.Var{
+			Value: v,
+			Type:  typ,
+		}
+	}
+	return vars, nil
+}
+
+func (ts *Service) convertToClientVarsFromKapacitor(kvars map[string]kapacitor.Var) (client.Vars, error) {
+	vars := make(client.Vars, len(kvars))
+	for name, value := range kvars {
+		var typ client.VarType
+		switch value.Type {
+		case kapacitor.VarBool:
+			typ = client.VarBool
+		case kapacitor.VarInt:
+			typ = client.VarInt
+		case kapacitor.VarFloat:
+			typ = client.VarFloat
+		case kapacitor.VarDuration:
+			typ = client.VarDuration
+		case kapacitor.VarString:
+			typ = client.VarString
+		case kapacitor.VarRegex:
+			typ = client.VarRegex
+		default:
+			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		}
+		vars[name] = client.Var{
+			Value: value.Value,
+			Type:  typ,
+		}
+	}
+	return vars, nil
 }
 
 func (ts *Service) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
@@ -1109,7 +1148,7 @@ func (ts *Service) handleTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	errMsg := raw.Error
-	dot, err := ts.templateDOT(raw)
+	task, err := ts.templateTask(raw)
 	if err != nil {
 		errMsg = err.Error()
 	}
@@ -1125,15 +1164,22 @@ func (ts *Service) handleTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	vars, err := ts.convertToClientVarsFromKapacitor(task.Vars())
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
+		return
+	}
+
 	info := client.Template{
 		Link:       ts.templateLink(id),
 		ID:         id,
 		Type:       typ,
 		TICKscript: raw.TICKscript,
-		Dot:        dot,
+		Dot:        string(task.Dot()),
 		Error:      errMsg,
 		Created:    raw.Created,
 		Modified:   raw.Modified,
+		Vars:       vars,
 	}
 
 	w.Write(httpd.MarshalJSON(info, true))
@@ -1210,6 +1256,10 @@ func (ts *Service) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 
 	for i, template := range rawTemplates {
 		templates[i] = make(map[string]interface{}, len(fields))
+		task, err := ts.templateTask(template)
+		if err != nil {
+			continue
+		}
 		for _, field := range fields {
 			var value interface{}
 			switch field {
@@ -1235,11 +1285,14 @@ func (ts *Service) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			case "dot":
-				dot, err := ts.templateDOT(template)
+				value = string(task.Dot())
+			case "vars":
+				vars, err := ts.convertToClientVarsFromKapacitor(task.Vars())
 				if err != nil {
+					ts.logger.Printf("E! failed to get vars for template %s: %s", template.ID, err)
 					break
 				}
-				value = dot
+				value = vars
 			case "error":
 				value = template.Error
 			case "created":
@@ -1309,7 +1362,7 @@ func (ts *Service) handleCreateTemplate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate template
-	dot, err := ts.templateDOT(newTemplate)
+	task, err := ts.templateTask(newTemplate)
 	if err != nil {
 		httpd.HttpError(w, "invalid TICKscript: "+err.Error(), true, http.StatusBadRequest)
 		return
@@ -1331,7 +1384,7 @@ func (ts *Service) handleCreateTemplate(w http.ResponseWriter, r *http.Request) 
 		ID:         newTemplate.ID,
 		Type:       template.Type,
 		TICKscript: template.TICKscript,
-		Dot:        dot,
+		Dot:        string(task.Dot()),
 		Created:    newTemplate.Created,
 		Modified:   newTemplate.Modified,
 	}
@@ -1373,7 +1426,7 @@ func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Validate template
-	_, err = ts.templateDOT(existing)
+	_, err = ts.templateTask(existing)
 	if err != nil {
 		httpd.HttpError(w, "invalid TICKscript: "+err.Error(), true, http.StatusBadRequest)
 		return
@@ -1424,9 +1477,10 @@ func (ts *Service) newKapacitorTask(task Task) (*kapacitor.Task, error) {
 		tt,
 		dbrps,
 		ts.snapshotInterval,
+		nil,
 	)
 }
-func (ts *Service) templateDOT(template Template) (string, error) {
+func (ts *Service) templateTask(template Template) (*kapacitor.Task, error) {
 	var tt kapacitor.TaskType
 	switch template.Type {
 	case StreamTask:
@@ -1439,11 +1493,12 @@ func (ts *Service) templateDOT(template Template) (string, error) {
 		tt,
 		nil,
 		ts.snapshotInterval,
+		nil,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(task.Dot()), nil
+	return task, nil
 }
 
 func (ts *Service) startTask(task Task) error {

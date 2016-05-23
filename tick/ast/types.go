@@ -5,21 +5,20 @@ import (
 	"time"
 )
 
-type Type int
+type ValueType uint8
 
 const (
-	InvalidType Type = iota
+	InvalidType ValueType = iota << 1
 	TFloat
 	TInt
 	TString
 	TBool
 	TRegex
+	TTime
 	TDuration
-	TLambda
-	TNode
 )
 
-func (v Type) String() string {
+func (v ValueType) String() string {
 	switch v {
 	case TFloat:
 		return "float"
@@ -28,21 +27,19 @@ func (v Type) String() string {
 	case TString:
 		return "string"
 	case TBool:
-		return "bool"
+		return "boolean"
 	case TRegex:
 		return "regex"
+	case TTime:
+		return "time"
 	case TDuration:
 		return "duration"
-	case TLambda:
-		return "lambda"
-	case TNode:
-		return "node"
 	}
 
 	return "invalid type"
 }
 
-func TypeOf(v interface{}) Type {
+func TypeOf(v interface{}) ValueType {
 	if v == nil {
 		return InvalidType
 	}
@@ -57,12 +54,10 @@ func TypeOf(v interface{}) Type {
 		return TBool
 	case *regexp.Regexp:
 		return TRegex
+	case time.Time:
+		return TTime
 	case time.Duration:
 		return TDuration
-	case *LambdaNode:
-		return TLambda
-	case Node:
-		return TNode
 	default:
 		return InvalidType
 	}
