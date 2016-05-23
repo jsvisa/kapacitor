@@ -227,14 +227,19 @@ func (tm *TaskMaster) NewTask(
 	tt TaskType,
 	dbrps []DBRP,
 	snapshotInterval time.Duration,
+	vars map[string]Var,
 ) (*Task, error) {
 	t := &Task{
 		ID:               id,
 		Type:             tt,
 		DBRPs:            dbrps,
 		SnapshotInterval: snapshotInterval,
+		Vars:             vars,
 	}
 	scope := tm.CreateTICKScope()
+	for name, value := range vars {
+		scope.Set(name, value)
+	}
 
 	var srcEdge pipeline.EdgeType
 	switch tt {
@@ -576,4 +581,42 @@ type noOpTimingService struct{}
 
 func (noOpTimingService) NewTimer(timer.Setter) timer.Timer {
 	return timer.NewNoOp()
+}
+
+type VarType int
+
+const (
+	VarUnknown VarType = iota
+	VarBool
+	VarInt
+	VarFloat
+	VarString
+	VarRegex
+	VarDuration
+)
+
+func (vt VarType) String() string {
+	switch vt {
+	case VarUnknown:
+		return "unknown"
+	case VarBool:
+		return "bool"
+	case VarInt:
+		return "int"
+	case VarFloat:
+		return "float"
+	case VarString:
+		return "string"
+	case VarRegex:
+		return "regex"
+	case VarDuration:
+		return "duration"
+	default:
+		return "invalid"
+	}
+}
+
+type Var struct {
+	Value interface{}
+	Type  VarType
 }

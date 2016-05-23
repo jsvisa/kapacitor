@@ -26,11 +26,15 @@ import (
 const (
 	tasksPath         = "/tasks"
 	tasksPathAnchored = "/tasks/"
+
+	templatesPath         = "/templates"
+	templatesPathAnchored = "/templates/"
 )
 
 type Service struct {
 	oldDBDir         string
 	tasks            TaskDAO
+	templates        TemplateDAO
 	snapshots        SnapshotDAO
 	routes           []httpd.Route
 	snapshotInterval time.Duration
@@ -48,6 +52,7 @@ type Service struct {
 			tt kapacitor.TaskType,
 			dbrps []kapacitor.DBRP,
 			snapshotInterval time.Duration,
+			vars map[string]interface{},
 		) (*kapacitor.Task, error)
 		StartTask(t *kapacitor.Task) (*kapacitor.ExecutingTask, error)
 		StopTask(name string) error
@@ -80,6 +85,7 @@ func (ts *Service) Open() error {
 	// Create DAO
 	store := ts.StorageService.Store(taskNamespace)
 	ts.tasks = newTaskKV(store)
+	ts.templates = newTemplateKV(store)
 	ts.snapshots = newSnapshotKV(store)
 
 	// Perform migration to new storage service.
@@ -126,6 +132,43 @@ func (ts *Service) Open() error {
 			Method:      "POST",
 			Pattern:     tasksPath,
 			HandlerFunc: ts.handleCreateTask,
+		},
+		{
+			Name:        "template",
+			Method:      "GET",
+			Pattern:     templatesPathAnchored,
+			HandlerFunc: ts.handleTemplate,
+		},
+		{
+			Name:        "deleteTemplate",
+			Method:      "DELETE",
+			Pattern:     templatesPathAnchored,
+			HandlerFunc: ts.handleDeleteTemplate,
+		},
+		{
+			// Satisfy CORS checks.
+			Name:        "/templates/-cors",
+			Method:      "OPTIONS",
+			Pattern:     templatesPathAnchored,
+			HandlerFunc: httpd.ServeOptions,
+		},
+		{
+			Name:        "updateTemplate",
+			Method:      "PATCH",
+			Pattern:     templatesPathAnchored,
+			HandlerFunc: ts.handleUpdateTemplate,
+		},
+		{
+			Name:        "listTemplates",
+			Method:      "GET",
+			Pattern:     templatesPath,
+			HandlerFunc: ts.handleListTemplates,
+		},
+		{
+			Name:        "createTemplate",
+			Method:      "POST",
+			Pattern:     templatesPath,
+			HandlerFunc: ts.handleCreateTemplate,
 		},
 	}
 
@@ -390,21 +433,39 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 		httpd.HttpError(w, err.Error(), true, http.StatusNotFound)
 		return
 	}
+	template := Template{
+		TICKscript: raw.TICKscript,
+		Type:       raw.Type,
+	}
+	if raw.TemplateID != "" {
+		template, err = ts.templates.Get(raw.TemplateID)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("template not found: %s", err.Error()), true, http.StatusNotFound)
+			return
+		}
+	}
 
 	scriptFormat := r.URL.Query().Get("script-format")
 	switch scriptFormat {
 	case "", "formatted":
+		scriptFormat = "formatted"
+	case "raw":
+	default:
+		httpd.HttpError(w, fmt.Sprintf("invalid script-format parameter %q", scriptFormat), true, http.StatusBadRequest)
+		return
+	}
+
+	script := template.TICKscript
+	if scriptFormat == "formatted" {
 		// Format TICKscript
-		formatted, err := tick.Format(raw.TICKscript)
+		formatted, err := tick.Format(script)
 		if err == nil {
 			// Only format if it succeeded.
 			// Otherwise a change in syntax may prevent task retrieval.
 			raw.TICKscript = formatted
 		}
-	case "raw":
-	default:
-		httpd.HttpError(w, fmt.Sprintf("invalid script-format parameter %q", scriptFormat), true, http.StatusBadRequest)
-		return
+	} else {
+		raw.TICKscript = script
 	}
 
 	dotView := r.URL.Query().Get("dot-view")
@@ -452,7 +513,7 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var typ client.TaskType
-	switch raw.Type {
+	switch template.Type {
 	case StreamTask:
 		typ = client.StreamTask
 	case BatchTask:
@@ -470,11 +531,46 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	vars := make(client.Vars, len(raw.Vars))
+	for name, value := range raw.Vars {
+		var v interface{}
+		var typ client.VarType
+		switch value.Type {
+		case VarBool:
+			v = value.BoolValue
+			typ = client.VarBool
+		case VarInt:
+			v = value.IntValue
+			typ = client.VarInt
+		case VarFloat:
+			v = value.FloatValue
+			typ = client.VarFloat
+		case VarDuration:
+			v = value.DurationValue
+			typ = client.VarDuration
+		case VarString:
+			v = value.StringValue
+			typ = client.VarString
+		case VarRegex:
+			v = value.RegexValue
+			typ = client.VarRegex
+		default:
+			httpd.HttpError(w, fmt.Sprintf("invalid task var recorded in db: name %s var %v", name, value), true, http.StatusInternalServerError)
+			return
+		}
+		vars[name] = client.Var{
+			Value: v,
+			Type:  typ,
+		}
+	}
+
 	info := client.Task{
+		Link:           ts.taskLink(id),
 		ID:             id,
 		Type:           typ,
 		DBRPs:          dbrps,
 		TICKscript:     raw.TICKscript,
+		Vars:           vars,
 		Dot:            dot,
 		Status:         status,
 		Executing:      executing,
@@ -488,7 +584,7 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 	w.Write(httpd.MarshalJSON(info, true))
 }
 
-var allFields = []string{
+var allTaskFields = []string{
 	"link",
 	"id",
 	"type",
@@ -523,7 +619,7 @@ func (ts *Service) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	pattern := r.URL.Query().Get("pattern")
 	fields := r.URL.Query()["fields"]
 	if len(fields) == 0 {
-		fields = allFields
+		fields = allTaskFields
 	} else {
 		// Always return ID field
 		fields = append(fields, "id", "link")
@@ -692,22 +788,41 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set task type
-	switch task.Type {
-	case client.StreamTask:
-		newTask.Type = StreamTask
-	case client.BatchTask:
-		newTask.Type = BatchTask
-	default:
-		httpd.HttpError(w, fmt.Sprintf("unknown type %q", task.Type), true, http.StatusBadRequest)
-		return
-	}
+	// Check for template ID
+	if task.TemplateID != "" {
+		template, err := ts.templates.Get(task.TemplateID)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("unknown template %s: err: %s", task.TemplateID, err), true, http.StatusBadRequest)
+			return
+		}
+		newTask.Type = Undefined
+		newTask.TICKscript = ""
+		newTask.TemplateID = task.TemplateID
+		switch template.Type {
+		case StreamTask:
+			task.Type = client.StreamTask
+		case BatchTask:
+			task.Type = client.BatchTask
+		}
+		task.TICKscript = template.TICKscript
+	} else {
+		// Set task type
+		switch task.Type {
+		case client.StreamTask:
+			newTask.Type = StreamTask
+		case client.BatchTask:
+			newTask.Type = BatchTask
+		default:
+			httpd.HttpError(w, fmt.Sprintf("unknown type %q", task.Type), true, http.StatusBadRequest)
+			return
+		}
 
-	// Set tick script
-	newTask.TICKscript = task.TICKscript
-	if newTask.TICKscript == "" {
-		httpd.HttpError(w, fmt.Sprintf("must provide TICKscript"), true, http.StatusBadRequest)
-		return
+		// Set tick script
+		newTask.TICKscript = task.TICKscript
+		if newTask.TICKscript == "" {
+			httpd.HttpError(w, fmt.Sprintf("must provide TICKscript"), true, http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Set dbrps
@@ -732,6 +847,32 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	default:
 		task.Status = client.Disabled
 		newTask.Status = Disabled
+	}
+
+	// Set vars
+	newTask.Vars = make(map[string]Var, len(task.Vars))
+	for name, value := range task.Vars {
+		var typ VarType
+		switch value.Type {
+		case client.VarBool:
+			typ = VarBool
+		case client.VarInt:
+			typ = VarInt
+		case client.VarFloat:
+			typ = VarFloat
+		case client.VarString:
+			typ = VarString
+		case client.VarRegex:
+			typ = VarRegex
+		case client.VarDuration:
+			typ = VarDuration
+		}
+		v, err := newVar(value, typ)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("invalid vars value for %s: %s", name, err), true, http.StatusBadRequest)
+			return
+		}
+		newTask.Vars[name] = v
 	}
 
 	// Validate task
@@ -784,6 +925,7 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Type:           task.Type,
 		DBRPs:          task.DBRPs,
 		TICKscript:     task.TICKscript,
+		Vars:           task.Vars,
 		Status:         task.Status,
 		Dot:            dot,
 		Executing:      executing,
@@ -816,17 +958,29 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set task type
-	switch task.Type {
-	case client.StreamTask:
-		existing.Type = StreamTask
-	case client.BatchTask:
-		existing.Type = BatchTask
-	}
+	if task.TemplateID != "" {
+		_, err := ts.templates.Get(task.TemplateID)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("unknown template %s: err: %s", task.TemplateID, err), true, http.StatusBadRequest)
+			return
+		}
+		existing.Type = Undefined
+		existing.TICKscript = ""
+		existing.TemplateID = task.TemplateID
+	} else if existing.TemplateID == "" {
+		// Only set type and script if not a templated task
+		// Set task type
+		switch task.Type {
+		case client.StreamTask:
+			existing.Type = StreamTask
+		case client.BatchTask:
+			existing.Type = BatchTask
+		}
 
-	// Set tick script
-	if task.TICKscript != "" {
-		existing.TICKscript = task.TICKscript
+		// Set tick script
+		if task.TICKscript != "" {
+			existing.TICKscript = task.TICKscript
+		}
 	}
 
 	// Set dbrps
@@ -849,6 +1003,17 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		existing.Status = Disabled
 	}
 	statusChanged := previousStatus != existing.Status
+
+	// Set vars
+	existing.Vars = make(map[string]*gobber, len(task.Vars))
+	for name, value := range task.Vars {
+		g, err := newGobber(value)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("invalid vars value for %s: %s", name, err), true, http.StatusBadRequest)
+			return
+		}
+		existing.Vars[name] = g
+	}
 
 	// Validate task
 	_, err = ts.newKapacitorTask(existing)
@@ -914,6 +1079,331 @@ func (ts *Service) deleteTask(id string) error {
 	return ts.tasks.Delete(id)
 }
 
+func (ts *Service) handleTemplate(w http.ResponseWriter, r *http.Request) {
+	id, err := ts.templateIDFromPath(r.URL.Path)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+		return
+	}
+
+	raw, err := ts.templates.Get(id)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusNotFound)
+		return
+	}
+
+	scriptFormat := r.URL.Query().Get("script-format")
+	switch scriptFormat {
+	case "", "formatted":
+		// Format TICKscript
+		formatted, err := tick.Format(raw.TICKscript)
+		if err == nil {
+			// Only format if it succeeded.
+			// Otherwise a change in syntax may prevent template retrieval.
+			raw.TICKscript = formatted
+		}
+	case "raw":
+	default:
+		httpd.HttpError(w, fmt.Sprintf("invalid script-format parameter %q", scriptFormat), true, http.StatusBadRequest)
+		return
+	}
+
+	errMsg := raw.Error
+	dot, err := ts.templateDOT(raw)
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	var typ client.TaskType
+	switch raw.Type {
+	case StreamTask:
+		typ = client.StreamTask
+	case BatchTask:
+		typ = client.BatchTask
+	default:
+		httpd.HttpError(w, fmt.Sprintf("invalid template type recorded in db %v", raw.Type), true, http.StatusInternalServerError)
+		return
+	}
+
+	info := client.Template{
+		Link:       ts.templateLink(id),
+		ID:         id,
+		Type:       typ,
+		TICKscript: raw.TICKscript,
+		Dot:        dot,
+		Error:      errMsg,
+		Created:    raw.Created,
+		Modified:   raw.Modified,
+	}
+
+	w.Write(httpd.MarshalJSON(info, true))
+}
+
+var allTemplateFields = []string{
+	"link",
+	"id",
+	"type",
+	"script",
+	"dot",
+	"error",
+	"created",
+	"modified",
+}
+
+const templatesBasePathAnchored = httpd.BasePath + templatesPathAnchored
+
+func (ts *Service) templateIDFromPath(path string) (string, error) {
+	if len(path) <= len(templatesBasePathAnchored) {
+		return "", errors.New("must specify template id on path")
+	}
+	id := path[len(templatesBasePathAnchored):]
+	return id, nil
+}
+
+func (ts *Service) templateLink(id string) client.Link {
+	return client.Link{Relation: client.Self, Href: path.Join(httpd.BasePath, templatesPath, id)}
+}
+
+func (ts *Service) handleListTemplates(w http.ResponseWriter, r *http.Request) {
+
+	pattern := r.URL.Query().Get("pattern")
+	fields := r.URL.Query()["fields"]
+	if len(fields) == 0 {
+		fields = allTemplateFields
+	} else {
+		// Always return ID field
+		fields = append(fields, "id", "link")
+	}
+
+	scriptFormat := r.URL.Query().Get("script-format")
+	switch scriptFormat {
+	case "":
+		scriptFormat = "formatted"
+	case "formatted":
+	case "raw":
+	default:
+		httpd.HttpError(w, fmt.Sprintf("invalid script-format parameter %q", scriptFormat), true, http.StatusBadRequest)
+		return
+	}
+
+	var err error
+	offset := int64(0)
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr != "" {
+		offset, err = strconv.ParseInt(offsetStr, 10, 64)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("invalid offset parameter %q must be an integer: %s", offsetStr, err), true, http.StatusBadRequest)
+		}
+	}
+
+	limit := int64(100)
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr != "" {
+		limit, err = strconv.ParseInt(limitStr, 10, 64)
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("invalid limit parameter %q must be an integer: %s", limitStr, err), true, http.StatusBadRequest)
+		}
+	}
+
+	rawTemplates, err := ts.templates.List(pattern, int(offset), int(limit))
+	templates := make([]map[string]interface{}, len(rawTemplates))
+
+	for i, template := range rawTemplates {
+		templates[i] = make(map[string]interface{}, len(fields))
+		for _, field := range fields {
+			var value interface{}
+			switch field {
+			case "id":
+				value = template.ID
+			case "link":
+				value = ts.templateLink(template.ID)
+			case "type":
+				switch template.Type {
+				case StreamTask:
+					value = client.StreamTask
+				case BatchTask:
+					value = client.BatchTask
+				}
+			case "script":
+				value = template.TICKscript
+				if scriptFormat == "formatted" {
+					formatted, err := tick.Format(template.TICKscript)
+					if err == nil {
+						// Only format if it succeeded.
+						// Otherwise a change in syntax may prevent template retrieval.
+						value = formatted
+					}
+				}
+			case "dot":
+				dot, err := ts.templateDOT(template)
+				if err != nil {
+					break
+				}
+				value = dot
+			case "error":
+				value = template.Error
+			case "created":
+				value = template.Created
+			case "modified":
+				value = template.Modified
+			default:
+				httpd.HttpError(w, fmt.Sprintf("unsupported field %q", field), true, http.StatusBadRequest)
+				return
+			}
+			templates[i][field] = value
+		}
+	}
+
+	type response struct {
+		Templates []map[string]interface{} `json:"templates"`
+	}
+
+	w.Write(httpd.MarshalJSON(response{templates}, true))
+}
+
+var validTemplateID = regexp.MustCompile(`^[-\._\p{L}0-9]+$`)
+
+func (ts *Service) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
+	template := client.CreateTemplateOptions{}
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&template)
+	if err != nil {
+		httpd.HttpError(w, "invalid JSON", true, http.StatusBadRequest)
+		return
+	}
+	if template.ID == "" {
+		template.ID = uuid.NewV4().String()
+	}
+	if !validTemplateID.MatchString(template.ID) {
+		httpd.HttpError(w, fmt.Sprintf("template ID must contain only letters, numbers, '-', '.' and '_'. %q", template.ID), true, http.StatusBadRequest)
+		return
+	}
+
+	newTemplate := Template{
+		ID: template.ID,
+	}
+
+	// Check for existing template
+	_, err = ts.templates.Get(template.ID)
+	if err == nil {
+		httpd.HttpError(w, fmt.Sprintf("template %s already exists", template.ID), true, http.StatusBadRequest)
+		return
+	}
+
+	// Set template type
+	switch template.Type {
+	case client.StreamTask:
+		newTemplate.Type = StreamTask
+	case client.BatchTask:
+		newTemplate.Type = BatchTask
+	default:
+		httpd.HttpError(w, fmt.Sprintf("unknown type %q", template.Type), true, http.StatusBadRequest)
+		return
+	}
+
+	// Set tick script
+	newTemplate.TICKscript = template.TICKscript
+	if newTemplate.TICKscript == "" {
+		httpd.HttpError(w, fmt.Sprintf("must provide TICKscript"), true, http.StatusBadRequest)
+		return
+	}
+
+	// Validate template
+	dot, err := ts.templateDOT(newTemplate)
+	if err != nil {
+		httpd.HttpError(w, "invalid TICKscript: "+err.Error(), true, http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+	newTemplate.Created = now
+	newTemplate.Modified = now
+
+	err = ts.templates.Create(newTemplate)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+
+	t := client.Template{
+		Link:       ts.templateLink(newTemplate.ID),
+		ID:         newTemplate.ID,
+		Type:       template.Type,
+		TICKscript: template.TICKscript,
+		Dot:        dot,
+		Created:    newTemplate.Created,
+		Modified:   newTemplate.Modified,
+	}
+	w.Write(httpd.MarshalJSON(t, true))
+}
+
+func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
+	id, err := ts.templateIDFromPath(r.URL.Path)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+		return
+	}
+	template := client.UpdateTemplateOptions{}
+	dec := json.NewDecoder(r.Body)
+	err = dec.Decode(&template)
+	if err != nil {
+		httpd.HttpError(w, "invalid JSON", true, http.StatusBadRequest)
+		return
+	}
+
+	// Check for existing template
+	existing, err := ts.templates.Get(id)
+	if err != nil {
+		httpd.HttpError(w, "template does not exist, cannot update", true, http.StatusNotFound)
+		return
+	}
+
+	// Set template type
+	switch template.Type {
+	case client.StreamTask:
+		existing.Type = StreamTask
+	case client.BatchTask:
+		existing.Type = BatchTask
+	}
+
+	// Set tick script
+	if template.TICKscript != "" {
+		existing.TICKscript = template.TICKscript
+	}
+
+	// Validate template
+	_, err = ts.templateDOT(existing)
+	if err != nil {
+		httpd.HttpError(w, "invalid TICKscript: "+err.Error(), true, http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now()
+	existing.Modified = now
+	err = ts.templates.Replace(existing)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ts *Service) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
+	id, err := ts.templateIDFromPath(r.URL.Path)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+		return
+	}
+	err = ts.templates.Delete(id)
+	if err != nil {
+		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (ts *Service) newKapacitorTask(task Task) (*kapacitor.Task, error) {
 	dbrps := make([]kapacitor.DBRP, len(task.DBRPs))
 	for i, dbrp := range task.DBRPs {
@@ -935,6 +1425,25 @@ func (ts *Service) newKapacitorTask(task Task) (*kapacitor.Task, error) {
 		dbrps,
 		ts.snapshotInterval,
 	)
+}
+func (ts *Service) templateDOT(template Template) (string, error) {
+	var tt kapacitor.TaskType
+	switch template.Type {
+	case StreamTask:
+		tt = kapacitor.StreamTask
+	case BatchTask:
+		tt = kapacitor.BatchTask
+	}
+	task, err := ts.TaskMaster.NewTask(template.ID,
+		template.TICKscript,
+		tt,
+		nil,
+		ts.snapshotInterval,
+	)
+	if err != nil {
+		return "", err
+	}
+	return string(task.Dot()), nil
 }
 
 func (ts *Service) startTask(task Task) error {

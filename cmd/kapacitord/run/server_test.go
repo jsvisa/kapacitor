@@ -513,7 +513,177 @@ func TestServer_ListTasks_Fields(t *testing.T) {
 			t.Errorf("unexpected task.Error i:%d exp:%v got:%v", i, exp, got)
 		}
 	}
+}
 
+func TestServer_CreateTemplate(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	id := "testTemplateID"
+	ttype := client.StreamTask
+	tick := `stream
+    |from()
+        .measurement('test')
+`
+	template, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         id,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ti, err := cli.Template(template.Link, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ti.Error != "" {
+		t.Fatal(ti.Error)
+	}
+	if ti.ID != id {
+		t.Fatalf("unexpected id got %s exp %s", ti.ID, id)
+	}
+	if ti.Type != client.StreamTask {
+		t.Fatalf("unexpected type got %v exp %v", ti.Type, client.StreamTask)
+	}
+	if ti.TICKscript != tick {
+		t.Fatalf("unexpected TICKscript got %s exp %s", ti.TICKscript, tick)
+	}
+	dot := "digraph testTemplateID {\nstream0 -> from1;\n}"
+	if ti.Dot != dot {
+		t.Fatalf("unexpected dot\ngot\n%s\nexp\n%s\n", ti.Dot, dot)
+	}
+}
+
+func TestServer_DeleteTemplate(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	id := "testTemplateID"
+	ttype := client.StreamTask
+	tick := `stream
+    |from()
+        .measurement('test')
+`
+	template, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         id,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = cli.DeleteTemplate(template.Link)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ti, err := cli.Template(template.Link, nil)
+	if err == nil {
+		t.Fatal("unexpected template:", ti)
+	}
+}
+
+func TestServer_CreateTaskFromTemplate(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	id := "testTemplateID"
+	ttype := client.StreamTask
+	tick := `var measurement = 'test'
+
+stream
+    |from()
+        .measurement(measurement)
+`
+	template, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         id,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	templateInfo, err := cli.Template(template.Link, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if templateInfo.Error != "" {
+		t.Fatal(templateInfo.Error)
+	}
+	if templateInfo.ID != id {
+		t.Fatalf("unexpected template.id got %s exp %s", templateInfo.ID, id)
+	}
+	if templateInfo.Type != client.StreamTask {
+		t.Fatalf("unexpected template.type got %v exp %v", templateInfo.Type, client.StreamTask)
+	}
+	if templateInfo.TICKscript != tick {
+		t.Fatalf("unexpected template.TICKscript got %s exp %s", templateInfo.TICKscript, tick)
+	}
+	dot := "digraph testTemplateID {\nstream0 -> from1;\n}"
+	if templateInfo.Dot != dot {
+		t.Fatalf("unexpected template.dot\ngot\n%s\nexp\n%s\n", templateInfo.Dot, dot)
+	}
+
+	dbrps := []client.DBRP{
+		{
+			Database:        "mydb",
+			RetentionPolicy: "myrp",
+		},
+		{
+			Database:        "otherdb",
+			RetentionPolicy: "default",
+		},
+	}
+	vars := map[string]interface{}{
+		"measurement": "test",
+	}
+
+	task, err := cli.CreateTask(client.CreateTaskOptions{
+		ID:         "taskid",
+		TemplateID: id,
+		DBRPs:      dbrps,
+		Vars:       vars,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	taskInfo, err := cli.Task(task.Link, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if taskInfo.Error != "" {
+		t.Fatal(taskInfo.Error)
+	}
+	if taskInfo.ID != "taskid" {
+		t.Fatalf("unexpected task.id got %s exp %s", taskInfo.ID, "taskid")
+	}
+	if taskInfo.Type != client.StreamTask {
+		t.Fatalf("unexpected task.type got %v exp %v", taskInfo.Type, client.StreamTask)
+	}
+	if taskInfo.TICKscript != tick {
+		t.Fatalf("unexpected task.TICKscript got %s exp %s", taskInfo.TICKscript, tick)
+	}
+	dot = "digraph taskid {\nstream0 -> from1;\n}"
+	if taskInfo.Dot != dot {
+		t.Fatalf("unexpected task.dot\ngot\n%s\nexp\n%s\n", taskInfo.Dot, dot)
+	}
+	if taskInfo.Status != client.Disabled {
+		t.Fatalf("unexpected task.status got %v exp %v", taskInfo.Status, client.Disabled)
+	}
+	if !reflect.DeepEqual(taskInfo.DBRPs, dbrps) {
+		t.Fatalf("unexpected task.dbrps got %s exp %s", taskInfo.DBRPs, dbrps)
+	}
+	if !reflect.DeepEqual(taskInfo.Vars, vars) {
+		t.Fatalf("unexpected task.vars got %s exp %s", taskInfo.Vars, vars)
+	}
 }
 
 func TestServer_StreamTask(t *testing.T) {
