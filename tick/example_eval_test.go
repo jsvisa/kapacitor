@@ -45,7 +45,7 @@ parent|spawn().name('child2')
 	parent := &Process{}
 	scope.Set("parent", parent)
 
-	err := Evaluate(script, scope)
+	_, err := Evaluate(script, scope, nil)
 	if err != nil {
 		fmt.Println(err)
 	}

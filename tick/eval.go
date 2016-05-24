@@ -34,6 +34,12 @@ func SetLogger(l *log.Logger) {
 
 type unboundFunc func(obj interface{}) (interface{}, error)
 
+type Var struct {
+	Value       interface{}
+	Type        ast.ValueType
+	Description string
+}
+
 // Interface for interacting with objects.
 // If an object does not self describe via this interface
 // than a reflection based implemenation will be used.
@@ -56,9 +62,9 @@ type PartialDescriber interface {
 }
 
 // Parse and evaluate a given script for the scope.
-// This evaluation method uses reflection to call
-// methods on objects within the scope.
-func Evaluate(script string, scope *stateful.Scope) (err error) {
+// Returns a set of default vars.
+// If a set of predefined vars is provided, they may effect the default var values.
+func Evaluate(script string, scope *stateful.Scope, predefinedVars map[string]Var) (_ map[string]Var, err error) {
 	defer func(errP *error) {
 		r := recover()
 		if r == ErrEmptyStack {
@@ -73,12 +79,18 @@ func Evaluate(script string, scope *stateful.Scope) (err error) {
 
 	root, err := ast.Parse(script)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Use a stack machine to evaluate the AST
 	stck := &stack{}
-	return eval(root, scope, stck)
+	// Collect any defined defaultVars
+	defaultVars := make(map[string]Var)
+	err = eval(root, scope, stck, predefinedVars, defaultVars)
+	if err != nil {
+		return nil, err
+	}
+	return defaultVars, nil
 }
 
 func errorf(p ast.Position, fmtStr string, args ...interface{}) error {
@@ -94,7 +106,7 @@ func wrapError(p ast.Position, err error) error {
 }
 
 // Evaluate a node using a stack machine in a given scope
-func eval(n ast.Node, scope *stateful.Scope, stck *stack) (err error) {
+func eval(n ast.Node, scope *stateful.Scope, stck *stack, predefinedVars, defaultVars map[string]Var) (err error) {
 	switch node := n.(type) {
 	case *ast.BoolNode:
 		stck.Push(node.Bool)
@@ -111,13 +123,13 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack) (err error) {
 	case *ast.RegexNode:
 		stck.Push(node.Regex)
 	case *ast.UnaryNode:
-		err = eval(node.Node, scope, stck)
+		err = eval(node.Node, scope, stck, predefinedVars, defaultVars)
 		if err != nil {
 			return
 		}
-		err := evalUnary(node, node.Operator, scope, stck)
+		err = evalUnary(node, node.Operator, scope, stck)
 		if err != nil {
-			return err
+			return
 		}
 	case *ast.BinaryNode:
 		// Switch over to using the stateful expressions for evaluating a BinaryNode
@@ -140,25 +152,26 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack) (err error) {
 			return
 		}
 		stck.Push(node.Node)
+	case *ast.TypeDeclarationNode:
+		err = evalTypeDeclaration(node, scope, predefinedVars, defaultVars)
+		if err != nil {
+			return
+		}
 	case *ast.DeclarationNode:
-		err = eval(node.Left, scope, stck)
+		err = eval(node.Right, scope, stck, predefinedVars, defaultVars)
 		if err != nil {
 			return
 		}
-		err = eval(node.Right, scope, stck)
-		if err != nil {
-			return
-		}
-		err = evalDeclaration(scope, stck)
+		err = evalDeclaration(node, scope, stck, predefinedVars, defaultVars)
 		if err != nil {
 			return
 		}
 	case *ast.ChainNode:
-		err = eval(node.Left, scope, stck)
+		err = eval(node.Left, scope, stck, predefinedVars, defaultVars)
 		if err != nil {
 			return
 		}
-		err = eval(node.Right, scope, stck)
+		err = eval(node.Right, scope, stck, predefinedVars, defaultVars)
 		if err != nil {
 			return
 		}
@@ -169,7 +182,7 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack) (err error) {
 	case *ast.FunctionNode:
 		args := make([]interface{}, len(node.Args))
 		for i, arg := range node.Args {
-			err = eval(arg, scope, stck)
+			err = eval(arg, scope, stck, predefinedVars, defaultVars)
 			if err != nil {
 				return
 			}
@@ -197,7 +210,7 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack) (err error) {
 		}
 	case *ast.ListNode:
 		for _, n := range node.Nodes {
-			err = eval(n, scope, stck)
+			err = eval(n, scope, stck, predefinedVars, defaultVars)
 			if err != nil {
 				return
 			}
@@ -250,14 +263,75 @@ func evalUnary(p ast.Position, op ast.TokenType, scope *stateful.Scope, stck *st
 	return nil
 }
 
-func evalDeclaration(scope *stateful.Scope, stck *stack) error {
-	r := stck.Pop()
-	l := stck.Pop()
-	i := l.(*ast.IdentifierNode)
-	if v, _ := scope.Get(i.Ident); v != nil {
-		return fmt.Errorf("attempted to redefine %s, vars are immutable", i.Ident)
+func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, predefinedVars, defaultVars map[string]Var) error {
+	var actualType ast.ValueType
+	switch node.Type.Ident {
+	case "int":
+		actualType = ast.TInt
+	case "float":
+		actualType = ast.TFloat
+	case "bool":
+		actualType = ast.TBool
+	case "string":
+		actualType = ast.TString
+	case "regex":
+		actualType = ast.TRegex
+	case "duration":
+		actualType = ast.TDuration
+	default:
+		return fmt.Errorf("invalid var type %s", node.Type.Ident)
 	}
-	scope.Set(i.Ident, r)
+	name := node.Node.Ident
+	desc := ""
+	if node.Comment != nil {
+		desc = node.Comment.CommentString()
+	}
+	defaultVars[name] = Var{
+		Type:        actualType,
+		Value:       nil,
+		Description: desc,
+	}
+
+	if predefinedValue, ok := predefinedVars[name]; ok {
+		if predefinedValue.Type != actualType {
+			return fmt.Errorf("invalid type supplied for %s, got %v exp %v", name, predefinedValue.Type, actualType)
+		}
+		scope.Set(name, predefinedValue.Value)
+	} else {
+		// Set zero value on scope, so execution can continue
+		scope.Set(name, ast.ZeroValue(actualType))
+	}
+
+	return nil
+}
+
+func evalDeclaration(node *ast.DeclarationNode, scope *stateful.Scope, stck *stack, predefinedVars, defaultVars map[string]Var) error {
+	name := node.Left.Ident
+	if v, _ := scope.Get(name); v != nil {
+		return fmt.Errorf("attempted to redefine %s, vars are immutable", name)
+	}
+	value := stck.Pop()
+	actualType := ast.TypeOf(value)
+	// Populate set of default vars
+	if actualType != ast.InvalidType {
+		desc := ""
+		if node.Comment != nil {
+			desc = node.Comment.CommentString()
+		}
+		defaultVars[name] = Var{
+			Type:        actualType,
+			Value:       value,
+			Description: desc,
+		}
+	}
+	// Populate scope, first check for predefined var
+	if predefinedValue, ok := predefinedVars[name]; ok {
+		if predefinedValue.Type != actualType {
+			return fmt.Errorf("invalid type supplied for %s, got %v exp %v", name, predefinedValue.Type, actualType)
+		}
+		value = predefinedValue.Value
+	}
+	scope.Set(name, value)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"errors"
 	"regexp"
 	"time"
 )
@@ -60,5 +61,26 @@ func TypeOf(v interface{}) ValueType {
 		return TDuration
 	default:
 		return InvalidType
+	}
+}
+
+func ZeroValue(t ValueType) interface{} {
+	switch t {
+	case TFloat:
+		return float64(0)
+	case TInt:
+		return int64(0)
+	case TString:
+		return ""
+	case TBool:
+		return false
+	case TRegex:
+		return nil
+	case TTime:
+		return time.Time{}
+	case TDuration:
+		return time.Duration(0)
+	default:
+		return errors.New("invalid type")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
@@ -96,7 +97,7 @@ s2|structC()
 	}
 	scope.Set("influxql", i)
 
-	err := tick.Evaluate(script, scope)
+	_, err := tick.Evaluate(script, scope, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestEvaluate_DynamicMethod(t *testing.T) {
 	}
 	scope.SetDynamicMethod("dynamicMethod", dm)
 
-	err := tick.Evaluate(script, scope)
+	_, err := tick.Evaluate(script, scope, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestEvaluate_DynamicMethod(t *testing.T) {
 	}
 }
 
-func TestEvaluate_Vars(t *testing.T) {
+func TestValidateTemplate_Vars(t *testing.T) {
 	script := `
 var x = 3m
 var y = -x
@@ -193,10 +194,12 @@ var n = TRUE
 var m = !n
 
 var z = x + y
+
+var a string
 `
 
 	scope := stateful.NewScope()
-	err := tick.Evaluate(script, scope)
+	vars, err := tick.Evaluate(script, scope, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,6 +263,151 @@ var z = x + y
 	} else {
 		t.Errorf("unexpected z value type: exp time.Duration got %T", z)
 	}
+
+	expVars := map[string]tick.Var{
+		"a": {
+			Value: nil,
+			Type:  ast.TString,
+		},
+		"x": {
+			Value: 3 * time.Minute,
+			Type:  ast.TDuration,
+		},
+		"y": {
+			Value: -3 * time.Minute,
+			Type:  ast.TDuration,
+		},
+		"z": {
+			Value: time.Duration(0),
+			Type:  ast.TDuration,
+		},
+		"n": {
+			Value: true,
+			Type:  ast.TBool,
+		},
+		"m": {
+			Value: false,
+			Type:  ast.TBool,
+		},
+	}
+	if !reflect.DeepEqual(expVars, vars) {
+		t.Errorf("unexpected vars: got %v exp %v", vars, expVars)
+	}
+}
+func TestEvaluate_Vars_PreDefined(t *testing.T) {
+	script := `
+var x = 3m
+var y = -x
+
+var n = TRUE
+var m = !n
+
+var z = x + y
+
+var a string
+`
+	definedVars := map[string]tick.Var{
+		"a": {
+			Value: "asdf",
+			Type:  ast.TString,
+		},
+		"x": {
+			Value: 5 * time.Minute,
+			Type:  ast.TDuration,
+		},
+		"n": {
+			Value: false,
+			Type:  ast.TBool,
+		},
+		"z": {
+			Value: 6 * time.Minute,
+			Type:  ast.TDuration,
+		},
+	}
+
+	scope := stateful.NewScope()
+	_, err := tick.Evaluate(script, scope, definedVars)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	x, err := scope.Get("x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := x.(time.Duration); ok {
+		if exp, got := time.Minute*5, value; exp != got {
+			t.Errorf("unexpected x value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected x value type: exp time.Duration got %T", x)
+	}
+
+	y, err := scope.Get("y")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := y.(time.Duration); ok {
+		if exp, got := time.Minute*-5, value; exp != got {
+			t.Errorf("unexpected y value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected y value type: exp time.Duration got %T", y)
+	}
+
+	n, err := scope.Get("n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := n.(bool); ok {
+		if exp, got := false, value; exp != got {
+			t.Errorf("unexpected n value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected m value type: exp bool got %T", x)
+	}
+
+	m, err := scope.Get("m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := m.(bool); ok {
+		if exp, got := true, value; exp != got {
+			t.Errorf("unexpected m value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected m value type: exp bool got %T", x)
+	}
+
+	z, err := scope.Get("z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value, ok := z.(time.Duration); ok {
+		if exp, got := 6*time.Minute, value; exp != got {
+			t.Errorf("unexpected z value: exp %v got %v", exp, got)
+		}
+	} else {
+		t.Errorf("unexpected z value type: exp time.Duration got %T", z)
+	}
+}
+
+func TestEvaluate_Vars_ErrorWrongType(t *testing.T) {
+	script := `
+var x = 3m
+`
+	definedVars := map[string]tick.Var{
+		"x": {
+			Value: "5m",
+			Type:  ast.TString,
+		},
+	}
+
+	scope := stateful.NewScope()
+	_, err := tick.Evaluate(script, scope, definedVars)
+	if err == nil {
+		t.Fatal("expected error for invalid var type")
+	}
 }
 
 func TestEvaluate_Vars_AllTypes(t *testing.T) {
@@ -288,7 +436,7 @@ var f = boolean AND FALSE
 `
 
 	scope := stateful.NewScope()
-	err := tick.Evaluate(script, scope)
+	vars, err := tick.Evaluate(script, scope, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,8 +462,13 @@ var f = boolean AND FALSE
 		} else if !reflect.DeepEqual(got, value) {
 			t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
 		}
+		if got, exp := vars[name].Value, value; !reflect.DeepEqual(got, exp) {
+			t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+		}
+		if got, exp := vars[name].Type, ast.TypeOf(value); got != exp {
+			t.Errorf("unexpected %s vars type: got %v exp %v", name, got, exp)
+		}
 	}
-
 }
 
 func TestEvaluate_Vars_Immutable(t *testing.T) {
@@ -325,7 +478,7 @@ var x = 2m
 `
 
 	scope := stateful.NewScope()
-	err := tick.Evaluate(script, scope)
+	_, err := tick.Evaluate(script, scope, nil)
 	if exp, got := "attempted to redefine x, vars are immutable", err.Error(); exp != got {
 		t.Errorf("unexpected error message: got %s exp %s", got, exp)
 	}
@@ -355,7 +508,7 @@ var s2 = a.structB()
 	a := &structA{}
 	scope.Set("a", a)
 
-	err := tick.Evaluate(script, scope)
+	_, err := tick.Evaluate(script, scope, nil)
 	if err == nil {
 		t.Fatal("expected error from Evaluate")
 	}

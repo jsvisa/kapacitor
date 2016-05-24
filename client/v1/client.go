@@ -415,8 +415,9 @@ func (vs *Vars) UnmarshalJSON(b []byte) error {
 }
 
 type Var struct {
-	Type  VarType     `json:"type"`
-	Value interface{} `json:"value"`
+	Type        VarType     `json:"type"`
+	Value       interface{} `json:"value"`
+	Description string      `json:"description"`
 }
 
 // A Task plus its read-only attributes.

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/kapacitor/services/httpd"
 	"github.com/influxdata/kapacitor/services/storage"
 	"github.com/influxdata/kapacitor/tick"
+	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/pkg/errors"
 	"github.com/twinj/uuid"
 )
@@ -52,8 +53,13 @@ type Service struct {
 			tt kapacitor.TaskType,
 			dbrps []kapacitor.DBRP,
 			snapshotInterval time.Duration,
-			vars map[string]kapacitor.Var,
+			vars map[string]tick.Var,
 		) (*kapacitor.Task, error)
+		NewTemplate(
+			name,
+			script string,
+			tt kapacitor.TaskType,
+		) (*kapacitor.Template, error)
 		StartTask(t *kapacitor.Task) (*kapacitor.ExecutingTask, error)
 		StopTask(name string) error
 		IsExecuting(name string) bool
@@ -768,8 +774,8 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			httpd.HttpError(w, fmt.Sprintf("unknown template %s: err: %s", task.TemplateID, err), true, http.StatusBadRequest)
 			return
 		}
-		newTask.Type = Undefined
-		newTask.TICKscript = ""
+		newTask.Type = template.Type
+		newTask.TICKscript = template.TICKscript
 		newTask.TemplateID = task.TemplateID
 		switch template.Type {
 		case StreamTask:
@@ -778,6 +784,10 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			task.Type = client.BatchTask
 		}
 		task.TICKscript = template.TICKscript
+		if err := ts.templates.AssociateTask(task.TemplateID, newTask.ID); err != nil {
+			httpd.HttpError(w, fmt.Sprintf("failed to associate task with template: %s", err), true, http.StatusBadRequest)
+			return
+		}
 	} else {
 		// Set task type
 		switch task.Type {
@@ -910,15 +920,26 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		httpd.HttpError(w, "task does not exist, cannot update", true, http.StatusNotFound)
 		return
 	}
+	log.Println("existing", existing.Vars)
 
 	if task.TemplateID != "" {
-		_, err := ts.templates.Get(task.TemplateID)
+		template, err := ts.templates.Get(task.TemplateID)
 		if err != nil {
 			httpd.HttpError(w, fmt.Sprintf("unknown template %s: err: %s", task.TemplateID, err), true, http.StatusBadRequest)
 			return
 		}
-		existing.Type = Undefined
-		existing.TICKscript = ""
+		if task.TemplateID != existing.TemplateID {
+			if err := ts.templates.DisassociateTask(existing.TemplateID, existing.ID); err != nil {
+				httpd.HttpError(w, fmt.Sprintf("failed to disassociate task with template: %s", err), true, http.StatusBadRequest)
+				return
+			}
+			if err := ts.templates.AssociateTask(task.TemplateID, existing.ID); err != nil {
+				httpd.HttpError(w, fmt.Sprintf("failed to associate task with template: %s", err), true, http.StatusBadRequest)
+				return
+			}
+		}
+		existing.Type = template.Type
+		existing.TICKscript = template.TICKscript
 		existing.TemplateID = task.TemplateID
 	} else if existing.TemplateID == "" {
 		// Only set type and script if not a templated task
@@ -958,10 +979,12 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	statusChanged := previousStatus != existing.Status
 
 	// Set vars
-	existing.Vars, err = ts.convertToServiceVars(task.Vars)
-	if err != nil {
-		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
-		return
+	if len(task.Vars) > 0 {
+		existing.Vars, err = ts.convertToServiceVars(task.Vars)
+		if err != nil {
+			httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Validate task
@@ -1017,7 +1040,7 @@ func (ts *Service) convertToServiceVars(cvars client.Vars) (map[string]Var, erro
 		case client.VarDuration:
 			typ = VarDuration
 		}
-		v, err := newVar(value, typ)
+		v, err := newVar(value.Value, typ, value.Description)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid var %s value %v", name, value)
 		}
@@ -1054,36 +1077,80 @@ func (ts *Service) convertToClientVars(svars map[string]Var) (client.Vars, error
 			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
 		}
 		vars[name] = client.Var{
-			Value: v,
-			Type:  typ,
+			Value:       v,
+			Type:        typ,
+			Description: value.Description,
 		}
 	}
 	return vars, nil
 }
 
-func (ts *Service) convertToClientVarsFromKapacitor(kvars map[string]kapacitor.Var) (client.Vars, error) {
+func (ts *Service) convertToClientVarsFromTick(kvars map[string]tick.Var) (client.Vars, error) {
 	vars := make(client.Vars, len(kvars))
 	for name, value := range kvars {
+		v := value.Value
 		var typ client.VarType
 		switch value.Type {
-		case kapacitor.VarBool:
+		case ast.TBool:
 			typ = client.VarBool
-		case kapacitor.VarInt:
+		case ast.TInt:
 			typ = client.VarInt
-		case kapacitor.VarFloat:
+		case ast.TFloat:
 			typ = client.VarFloat
-		case kapacitor.VarDuration:
+		case ast.TDuration:
 			typ = client.VarDuration
-		case kapacitor.VarString:
+		case ast.TString:
 			typ = client.VarString
-		case kapacitor.VarRegex:
+		case ast.TRegex:
 			typ = client.VarRegex
+			v = v.(*regexp.Regexp).String()
 		default:
 			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
 		}
 		vars[name] = client.Var{
-			Value: value.Value,
-			Type:  typ,
+			Value:       v,
+			Type:        typ,
+			Description: value.Description,
+		}
+	}
+	return vars, nil
+}
+
+func (ts *Service) convertToTickVarsFromService(svars map[string]Var) (map[string]tick.Var, error) {
+	vars := make(map[string]tick.Var, len(svars))
+	for name, value := range svars {
+		var v interface{}
+		var typ ast.ValueType
+		switch value.Type {
+		case VarBool:
+			typ = ast.TBool
+			v = value.BoolValue
+		case VarInt:
+			typ = ast.TInt
+			v = value.IntValue
+		case VarFloat:
+			typ = ast.TFloat
+			v = value.FloatValue
+		case VarDuration:
+			typ = ast.TDuration
+			v = value.DurationValue
+		case VarString:
+			typ = ast.TString
+			v = value.StringValue
+		case VarRegex:
+			typ = ast.TRegex
+			r, err := regexp.Compile(value.StringValue)
+			if err != nil {
+				return nil, errors.Wrapf(err, "var %s has invalid regex pattern", name)
+			}
+			v = r
+		default:
+			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		}
+		vars[name] = tick.Var{
+			Value:       v,
+			Type:        typ,
+			Description: value.Description,
 		}
 	}
 	return vars, nil
@@ -1164,7 +1231,7 @@ func (ts *Service) handleTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vars, err := ts.convertToClientVarsFromKapacitor(task.Vars())
+	vars, err := ts.convertToClientVarsFromTick(task.Vars())
 	if err != nil {
 		httpd.HttpError(w, err.Error(), true, http.StatusInternalServerError)
 		return
@@ -1287,7 +1354,7 @@ func (ts *Service) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 			case "dot":
 				value = string(task.Dot())
 			case "vars":
-				vars, err := ts.convertToClientVarsFromKapacitor(task.Vars())
+				vars, err := ts.convertToClientVarsFromTick(task.Vars())
 				if err != nil {
 					ts.logger.Printf("E! failed to get vars for template %s: %s", template.ID, err)
 					break
@@ -1392,6 +1459,7 @@ func (ts *Service) handleCreateTemplate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
+	log.Println("handleUpdateTemplate")
 	id, err := ts.templateIDFromPath(r.URL.Path)
 	if err != nil {
 		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
@@ -1440,6 +1508,38 @@ func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Update all associated tasks
+	taskIds, err := ts.templates.ListAssociatedTasks(existing.ID)
+	log.Println("list taskIds", taskIds)
+	if err != nil {
+		httpd.HttpError(w, fmt.Sprintf("error getting associated tasks for template %s: %s", existing.ID, err), true, http.StatusInternalServerError)
+		return
+	}
+	for _, taskId := range taskIds {
+		task, err := ts.tasks.Get(taskId)
+		if err == ErrNoTaskExists {
+			ts.templates.DisassociateTask(existing.ID, taskId)
+			continue
+		}
+		if err != nil {
+			httpd.HttpError(w, fmt.Sprintf("error updating associated task %s: %s", taskId, err), true, http.StatusInternalServerError)
+			return
+		}
+		task.TICKscript = existing.TICKscript
+		task.Type = existing.Type
+		if err := ts.tasks.Replace(task); err != nil {
+			httpd.HttpError(w, fmt.Sprintf("error updating associated task %s: %s", taskId, err), true, http.StatusInternalServerError)
+			return
+		}
+		if task.Status == Enabled {
+			ts.stopTask(taskId)
+			err := ts.startTask(task)
+			if err != nil {
+				httpd.HttpError(w, fmt.Sprintf("error reloading associated task %s: %s", taskId, err), true, http.StatusInternalServerError)
+				return
+			}
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1472,15 +1572,20 @@ func (ts *Service) newKapacitorTask(task Task) (*kapacitor.Task, error) {
 	case BatchTask:
 		tt = kapacitor.BatchTask
 	}
+	vars, err := ts.convertToTickVarsFromService(task.Vars)
+	if err != nil {
+		return nil, err
+	}
 	return ts.TaskMaster.NewTask(task.ID,
 		task.TICKscript,
 		tt,
 		dbrps,
 		ts.snapshotInterval,
-		nil,
+		vars,
 	)
 }
-func (ts *Service) templateTask(template Template) (*kapacitor.Task, error) {
+
+func (ts *Service) templateTask(template Template) (*kapacitor.Template, error) {
 	var tt kapacitor.TaskType
 	switch template.Type {
 	case StreamTask:
@@ -1488,17 +1593,14 @@ func (ts *Service) templateTask(template Template) (*kapacitor.Task, error) {
 	case BatchTask:
 		tt = kapacitor.BatchTask
 	}
-	task, err := ts.TaskMaster.NewTask(template.ID,
+	t, err := ts.TaskMaster.NewTemplate(template.ID,
 		template.TICKscript,
 		tt,
-		nil,
-		ts.snapshotInterval,
-		nil,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return task, nil
+	return t, nil
 }
 
 func (ts *Service) startTask(task Task) error {

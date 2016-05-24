@@ -890,3 +890,7 @@ func (n *CommentNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
 		buf.WriteByte('\n')
 	}
 }
+
+func (n *CommentNode) CommentString() string {
+	return strings.Join(n.Comments, "\n")
+}

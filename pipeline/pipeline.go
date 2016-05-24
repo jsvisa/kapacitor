@@ -18,19 +18,31 @@ type DeadmanService interface {
 	Global() bool
 }
 
-// A complete data processing pipeline. Starts with a single source.
+// Create a template pipeline
 // tick:ignore
-type Pipeline struct {
-	sources []Node
-	id      ID
-	sorted  []Node
-
-	deadman DeadmanService
+func CreateTemplatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService) (*TemplatePipeline, error) {
+	p, vars, err := createPipelineAndVars(script, sourceEdge, scope, deadman, nil)
+	if err != nil {
+		return nil, err
+	}
+	tp := &TemplatePipeline{
+		p:    p,
+		vars: vars,
+	}
+	return tp, nil
 }
 
 // Create a pipeline from a given script.
 // tick:ignore
-func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService) (*Pipeline, error) {
+func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService, predefinedVars map[string]tick.Var) (*Pipeline, error) {
+	p, _, err := createPipelineAndVars(script, sourceEdge, scope, deadman, predefinedVars)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func createPipelineAndVars(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService, predefinedVars map[string]tick.Var) (*Pipeline, map[string]tick.Var, error) {
 	p := &Pipeline{
 		deadman: deadman,
 	}
@@ -43,13 +55,13 @@ func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, d
 		src = newBatchNode()
 		scope.Set("batch", src)
 	default:
-		return nil, fmt.Errorf("source edge type must be either Stream or Batch not %s", sourceEdge)
+		return nil, nil, fmt.Errorf("source edge type must be either Stream or Batch not %s", sourceEdge)
 	}
 	p.addSource(src)
 
-	err := tick.Evaluate(script, scope)
+	vars, err := tick.Evaluate(script, scope, predefinedVars)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if deadman.Global() {
 		switch s := src.(type) {
@@ -58,16 +70,26 @@ func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, d
 		case *BatchNode:
 			s.Deadman(deadman.Threshold(), deadman.Interval())
 		default:
-			return nil, fmt.Errorf("source edge type must be either Stream or Batch not %s", sourceEdge)
+			return nil, nil, fmt.Errorf("source edge type must be either Stream or Batch not %s", sourceEdge)
 		}
 	}
 	if err = p.Walk(
 		func(n Node) error {
 			return n.validate()
 		}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return p, nil
+	return p, vars, nil
+}
+
+// A complete data processing pipeline. Starts with a single source.
+// tick:ignore
+type Pipeline struct {
+	sources []Node
+	id      ID
+	sorted  []Node
+
+	deadman DeadmanService
 }
 
 func (p *Pipeline) addSource(src Node) {
@@ -143,4 +165,21 @@ func (p *Pipeline) Dot(name string) []byte {
 	buf.Write([]byte("}"))
 
 	return buf.Bytes()
+}
+
+type TemplatePipeline struct {
+	p    *Pipeline
+	vars map[string]tick.Var
+}
+
+// Return the set of vars defined by the TICKscript with their defaults
+// tick:ignore
+func (t *TemplatePipeline) Vars() map[string]tick.Var {
+	return t.vars
+}
+
+// Return a graphviz .dot formatted byte array.
+// tick:ignore
+func (t *TemplatePipeline) Dot(name string) []byte {
+	return t.p.Dot(name)
 }

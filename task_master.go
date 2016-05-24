@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/kapacitor/models"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/services/httpd"
+	"github.com/influxdata/kapacitor/tick"
 	"github.com/influxdata/kapacitor/tick/stateful"
 	"github.com/influxdata/kapacitor/timer"
 	"github.com/influxdata/kapacitor/udf"
@@ -220,25 +221,16 @@ func (tm *TaskMaster) Drain() {
 	}
 }
 
-// Create a new task in the context of a TaskMaster
-func (tm *TaskMaster) NewTask(
+// Create a new template in the context of a TaskMaster
+func (tm *TaskMaster) NewTemplate(
 	id,
 	script string,
 	tt TaskType,
-	dbrps []DBRP,
-	snapshotInterval time.Duration,
-	vars map[string]Var,
-) (*Task, error) {
-	t := &Task{
-		ID:               id,
-		Type:             tt,
-		DBRPs:            dbrps,
-		SnapshotInterval: snapshotInterval,
+) (*Template, error) {
+	t := &Template{
+		id: id,
 	}
 	scope := tm.CreateTICKScope()
-	for name, value := range vars {
-		scope.Set(name, value)
-	}
 
 	var srcEdge pipeline.EdgeType
 	switch tt {
@@ -248,7 +240,40 @@ func (tm *TaskMaster) NewTask(
 		srcEdge = pipeline.BatchEdge
 	}
 
-	p, err := pipeline.CreatePipeline(script, srcEdge, scope, tm.DeadmanService)
+	tp, err := pipeline.CreateTemplatePipeline(script, srcEdge, scope, tm.DeadmanService)
+	if err != nil {
+		return nil, err
+	}
+	t.tp = tp
+	return t, nil
+}
+
+// Create a new task in the context of a TaskMaster
+func (tm *TaskMaster) NewTask(
+	id,
+	script string,
+	tt TaskType,
+	dbrps []DBRP,
+	snapshotInterval time.Duration,
+	vars map[string]tick.Var,
+) (*Task, error) {
+	t := &Task{
+		ID:               id,
+		Type:             tt,
+		DBRPs:            dbrps,
+		SnapshotInterval: snapshotInterval,
+	}
+	scope := tm.CreateTICKScope()
+
+	var srcEdge pipeline.EdgeType
+	switch tt {
+	case StreamTask:
+		srcEdge = pipeline.StreamEdge
+	case BatchTask:
+		srcEdge = pipeline.BatchEdge
+	}
+
+	p, err := pipeline.CreatePipeline(script, srcEdge, scope, tm.DeadmanService, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -580,42 +605,4 @@ type noOpTimingService struct{}
 
 func (noOpTimingService) NewTimer(timer.Setter) timer.Timer {
 	return timer.NewNoOp()
-}
-
-type VarType int
-
-const (
-	VarUnknown VarType = iota
-	VarBool
-	VarInt
-	VarFloat
-	VarString
-	VarRegex
-	VarDuration
-)
-
-func (vt VarType) String() string {
-	switch vt {
-	case VarUnknown:
-		return "unknown"
-	case VarBool:
-		return "bool"
-	case VarInt:
-		return "int"
-	case VarFloat:
-		return "float"
-	case VarString:
-		return "string"
-	case VarRegex:
-		return "regex"
-	case VarDuration:
-		return "duration"
-	default:
-		return "invalid"
-	}
-}
-
-type Var struct {
-	Value interface{}
-	Type  VarType
 }

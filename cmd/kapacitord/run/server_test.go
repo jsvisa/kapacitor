@@ -599,7 +599,8 @@ func TestServer_CreateTaskFromTemplate(t *testing.T) {
 
 	id := "testTemplateID"
 	ttype := client.StreamTask
-	tick := `var measurement = 'test'
+	tick := `// Configurable measurement
+var measurement = 'test'
 
 stream
     |from()
@@ -635,6 +636,16 @@ stream
 	if templateInfo.Dot != dot {
 		t.Fatalf("unexpected template.dot\ngot\n%s\nexp\n%s\n", templateInfo.Dot, dot)
 	}
+	expVars := client.Vars{
+		"measurement": {
+			Value:       "test",
+			Type:        client.VarString,
+			Description: "Configurable measurement",
+		},
+	}
+	if got, exp := templateInfo.Vars, expVars; !reflect.DeepEqual(exp, got) {
+		t.Errorf("unexpected template vars: got %v exp %v", got, exp)
+	}
 
 	dbrps := []client.DBRP{
 		{
@@ -648,7 +659,7 @@ stream
 	}
 	vars := client.Vars{
 		"measurement": {
-			Value: "test",
+			Value: "another_measurement",
 			Type:  client.VarString,
 		},
 	}
@@ -734,6 +745,274 @@ func TestServer_StreamTask(t *testing.T) {
 	}
 
 	endpoint := fmt.Sprintf("%s/tasks/%s/count", s.URL(), id)
+
+	// Request data before any writes and expect null responses
+	nullResponse := `{}`
+	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+
+	points := `test value=1 0000000000
+test value=1 0000000001
+test value=1 0000000001
+test value=1 0000000002
+test value=1 0000000002
+test value=1 0000000003
+test value=1 0000000003
+test value=1 0000000004
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000006
+test value=1 0000000007
+test value=1 0000000008
+test value=1 0000000009
+test value=1 0000000010
+test value=1 0000000011
+`
+	v := url.Values{}
+	v.Add("precision", "s")
+	s.MustWrite("mydb", "myrp", points, v)
+
+	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
+	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestServer_StreamTemplateTask(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	templateId := "testStreamTemplate"
+	taskId := "testStreamTask"
+	ttype := client.StreamTask
+	dbrps := []client.DBRP{{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}}
+	tick := `
+var field = 'nonexistent'
+stream
+    |from()
+        .measurement('test')
+    |window()
+        .period(10s)
+        .every(10s)
+    |count(field)
+    |httpOut('count')
+`
+	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         templateId,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+
+	_, err = cli.CreateTask(client.CreateTaskOptions{
+		ID:         taskId,
+		TemplateID: templateId,
+		DBRPs:      dbrps,
+		Status:     client.Enabled,
+		Vars: client.Vars{
+			"field": {
+				Value: "value",
+				Type:  client.VarString,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := fmt.Sprintf("%s/tasks/%s/count", s.URL(), taskId)
+
+	// Request data before any writes and expect null responses
+	nullResponse := `{}`
+	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+
+	points := `test value=1 0000000000
+test value=1 0000000001
+test value=1 0000000001
+test value=1 0000000002
+test value=1 0000000002
+test value=1 0000000003
+test value=1 0000000003
+test value=1 0000000004
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000006
+test value=1 0000000007
+test value=1 0000000008
+test value=1 0000000009
+test value=1 0000000010
+test value=1 0000000011
+`
+	v := url.Values{}
+	v.Add("precision", "s")
+	s.MustWrite("mydb", "myrp", points, v)
+
+	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
+	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestServer_StreamTemplateTaskFromUpdate(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	templateId := "testStreamTemplate"
+	taskId := "testStreamTask"
+	ttype := client.StreamTask
+	dbrps := []client.DBRP{{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}}
+	tick := `
+var field = 'nonexistent'
+stream
+    |from()
+        .measurement('test')
+    |window()
+        .period(10s)
+        .every(10s)
+    |count(field)
+    |httpOut('count')
+`
+	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         templateId,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+
+	task, err := cli.CreateTask(client.CreateTaskOptions{
+		ID:         taskId,
+		TemplateID: templateId,
+		DBRPs:      dbrps,
+		Status:     client.Disabled,
+		Vars: client.Vars{
+			"field": {
+				Value: "value",
+				Type:  client.VarString,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = cli.UpdateTask(task.Link, client.UpdateTaskOptions{
+		Status: client.Enabled,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := fmt.Sprintf("%s/tasks/%s/count", s.URL(), taskId)
+
+	// Request data before any writes and expect null responses
+	nullResponse := `{}`
+	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+
+	points := `test value=1 0000000000
+test value=1 0000000001
+test value=1 0000000001
+test value=1 0000000002
+test value=1 0000000002
+test value=1 0000000003
+test value=1 0000000003
+test value=1 0000000004
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000005
+test value=1 0000000006
+test value=1 0000000007
+test value=1 0000000008
+test value=1 0000000009
+test value=1 0000000010
+test value=1 0000000011
+`
+	v := url.Values{}
+	v.Add("precision", "s")
+	s.MustWrite("mydb", "myrp", points, v)
+
+	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
+	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
+	if err != nil {
+		t.Error(err)
+	}
+}
+func TestServer_StreamTemplateTask_UpdateTemplate(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	templateId := "testStreamTemplate"
+	taskId := "testStreamTask"
+	ttype := client.StreamTask
+	dbrps := []client.DBRP{{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}}
+	tickWrong := `
+stream
+    |from()
+        .measurement('test')
+    |window()
+        .period(10s)
+        .every(10s)
+    |count('wrong')
+    |httpOut('count')
+`
+	tickCorrect := `
+var field string
+stream
+    |from()
+        .measurement('test')
+    |window()
+        .period(10s)
+        .every(10s)
+    |count(field)
+    |httpOut('count')
+`
+	template, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         templateId,
+		Type:       ttype,
+		TICKscript: tickWrong,
+	})
+
+	_, err = cli.CreateTask(client.CreateTaskOptions{
+		ID:         taskId,
+		TemplateID: templateId,
+		DBRPs:      dbrps,
+		Status:     client.Enabled,
+		Vars: client.Vars{
+			"field": {
+				Value: "value",
+				Type:  client.VarString,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cli.UpdateTemplate(template.Link, client.UpdateTemplateOptions{
+		TICKscript: tickCorrect,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := fmt.Sprintf("%s/tasks/%s/count", s.URL(), taskId)
 
 	// Request data before any writes and expect null responses
 	nullResponse := `{}`

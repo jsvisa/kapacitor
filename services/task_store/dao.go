@@ -71,6 +71,8 @@ type TemplateDAO interface {
 
 	// Disassociate a task with a template
 	DisassociateTask(templateId, taskId string) error
+
+	ListAssociatedTasks(templateId string) ([]string, error)
 }
 
 // Data access object for Snapshot data.
@@ -473,7 +475,7 @@ func (d *templateKV) AssociateTask(templateId, taskId string) error {
 		return ErrNoTemplateExists
 	}
 	akey := d.templateTaskAssociationKey(templateId, taskId)
-	return d.store.Put(akey, []byte{1})
+	return d.store.Put(akey, []byte(taskId))
 }
 
 func (d *templateKV) DisassociateTask(templateId, taskId string) error {
@@ -487,6 +489,18 @@ func (d *templateKV) DisassociateTask(templateId, taskId string) error {
 	}
 	akey := d.templateTaskAssociationKey(templateId, taskId)
 	return d.store.Delete(akey)
+}
+
+func (d *templateKV) ListAssociatedTasks(templateId string) ([]string, error) {
+	ids, err := d.store.List(templateTaskPrefix + templateId + "/")
+	if err != nil {
+		return nil, err
+	}
+	taskIds := make([]string, len(ids))
+	for i, id := range ids {
+		taskIds[i] = string(id.Value)
+	}
+	return taskIds, nil
 }
 
 func (d *templateKV) List(pattern string, offset, limit int) ([]Template, error) {
@@ -627,12 +641,14 @@ type Var struct {
 	RegexValue    string
 	DurationValue time.Duration
 
-	Type VarType
+	Type        VarType
+	Description string
 }
 
-func newVar(value interface{}, typ VarType) (Var, error) {
+func newVar(value interface{}, typ VarType, desc string) (Var, error) {
 	g := Var{
-		Type: typ,
+		Type:        typ,
+		Description: desc,
 	}
 	switch v := value.(type) {
 	case bool:
