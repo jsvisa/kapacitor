@@ -863,6 +863,47 @@ test value=1 0000000011
 		t.Error(err)
 	}
 }
+func TestServer_StreamTemplateTask_MissingVar(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	templateId := "testStreamTemplate"
+	taskId := "testStreamTask"
+	ttype := client.StreamTask
+	dbrps := []client.DBRP{{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}}
+	tick := `
+var field string
+stream
+    |from()
+        .measurement('test')
+    |window()
+        .period(10s)
+        .every(10s)
+    |count(field)
+    |httpOut('count')
+`
+	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         templateId,
+		Type:       ttype,
+		TICKscript: tick,
+	})
+
+	_, err = cli.CreateTask(client.CreateTaskOptions{
+		ID:         taskId,
+		TemplateID: templateId,
+		DBRPs:      dbrps,
+		Status:     client.Enabled,
+	})
+	if err == nil {
+		t.Error("expected error for missing task vars")
+	}
+	if exp, got := "invalid TICKscript: missing value for var \"field\".", err.Error(); got != exp {
+		t.Errorf("unexpected error message: got %s exp %s", got, exp)
+	}
+}
 
 func TestServer_StreamTemplateTaskFromUpdate(t *testing.T) {
 	s, cli := OpenDefaultServer()

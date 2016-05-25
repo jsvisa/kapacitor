@@ -41,9 +41,6 @@ func (v ValueType) String() string {
 }
 
 func TypeOf(v interface{}) ValueType {
-	if v == nil {
-		return InvalidType
-	}
 	switch v.(type) {
 	case float64:
 		return TFloat
@@ -75,7 +72,7 @@ func ZeroValue(t ValueType) interface{} {
 	case TBool:
 		return false
 	case TRegex:
-		return nil
+		return (*regexp.Regexp)(nil)
 	case TTime:
 		return time.Time{}
 	case TDuration:

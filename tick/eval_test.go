@@ -97,7 +97,7 @@ s2|structC()
 	}
 	scope.Set("influxql", i)
 
-	_, err := tick.Evaluate(script, scope, nil)
+	_, err := tick.Evaluate(script, scope, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestEvaluate_DynamicMethod(t *testing.T) {
 	}
 	scope.SetDynamicMethod("dynamicMethod", dm)
 
-	_, err := tick.Evaluate(script, scope, nil)
+	_, err := tick.Evaluate(script, scope, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ var a string
 `
 
 	scope := stateful.NewScope()
-	vars, err := tick.Evaluate(script, scope, nil)
+	vars, err := tick.Evaluate(script, scope, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ var a string
 
 	expVars := map[string]tick.Var{
 		"a": {
-			Value: nil,
+			Value: "",
 			Type:  ast.TString,
 		},
 		"x": {
@@ -326,7 +326,7 @@ var a string
 	}
 
 	scope := stateful.NewScope()
-	_, err := tick.Evaluate(script, scope, definedVars)
+	_, err := tick.Evaluate(script, scope, definedVars, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,9 +404,22 @@ var x = 3m
 	}
 
 	scope := stateful.NewScope()
-	_, err := tick.Evaluate(script, scope, definedVars)
+	_, err := tick.Evaluate(script, scope, definedVars, false)
 	if err == nil {
 		t.Fatal("expected error for invalid var type")
+	}
+}
+func TestEvaluate_Vars_ErrorMissingValue(t *testing.T) {
+	script := `
+var x duration
+`
+	scope := stateful.NewScope()
+	if _, err := tick.Evaluate(script, scope, nil, false); err == nil {
+		t.Fatal("expected error for missing var type")
+	}
+
+	if _, err := tick.Evaluate(script, scope, nil, true); err != nil {
+		t.Fatal("uexpected error missing var should be ignored")
 	}
 }
 
@@ -414,46 +427,68 @@ func TestEvaluate_Vars_AllTypes(t *testing.T) {
 	script := `
 var str = 'this is a string'
 var strA = str + ' concat'
+var strZero string
+var strCopy = str
 
 var integer = 42
 var intergerMath = (integer * 2) - ( 6 * 9 ) + (36 / 3)
+var intZero int
+var integerCopy= integer
 
 var float = 3.14
 var tastyPie = float * 42.0
+var floatZero float
+var floatCopy = float
 
 var intFloat = int(sqrt(float)) * 3
 
 var duration = 5m
 var later = duration + 1m
+var durationZero duration
+var durationCopy = duration
 
 var regex = /.*/
+var regexZero regex
+var regexCopy = regex
 
 
 var boolean = TRUE
 var f = boolean AND FALSE
-
-
+var booleanZero bool
+var booleanCopy = boolean
 `
 
 	scope := stateful.NewScope()
-	vars, err := tick.Evaluate(script, scope, nil)
+	vars, err := tick.Evaluate(script, scope, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	exp := map[string]interface{}{
 		"str":          "this is a string",
+		"strCopy":      "this is a string",
 		"strA":         "this is a string concat",
+		"strZero":      "",
 		"integer":      int64(42),
+		"integerCopy":  int64(42),
 		"intergerMath": int64(42),
+		"intZero":      int64(0),
 		"float":        3.14,
+		"floatCopy":    3.14,
 		"tastyPie":     3.14 * 42.0,
 		"intFloat":     int64(3),
+		"floatZero":    float64(0),
 		"duration":     5 * time.Minute,
+		"durationCopy": 5 * time.Minute,
 		"later":        6 * time.Minute,
+		"durationZero": time.Duration(0),
 		"regex":        regexp.MustCompile(".*"),
+		"regexCopy":    regexp.MustCompile(".*"),
+		"regexZero":    (*regexp.Regexp)(nil),
 		"boolean":      true,
+		"booleanCopy":  true,
 		"f":            false,
+		"booleanZero":  false,
 	}
 
 	for name, value := range exp {
@@ -478,7 +513,7 @@ var x = 2m
 `
 
 	scope := stateful.NewScope()
-	_, err := tick.Evaluate(script, scope, nil)
+	_, err := tick.Evaluate(script, scope, nil, false)
 	if exp, got := "attempted to redefine x, vars are immutable", err.Error(); exp != got {
 		t.Errorf("unexpected error message: got %s exp %s", got, exp)
 	}
@@ -508,7 +543,7 @@ var s2 = a.structB()
 	a := &structA{}
 	scope.Set("a", a)
 
-	_, err := tick.Evaluate(script, scope, nil)
+	_, err := tick.Evaluate(script, scope, nil, false)
 	if err == nil {
 		t.Fatal("expected error from Evaluate")
 	}

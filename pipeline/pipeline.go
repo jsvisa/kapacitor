@@ -20,8 +20,13 @@ type DeadmanService interface {
 
 // Create a template pipeline
 // tick:ignore
-func CreateTemplatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService) (*TemplatePipeline, error) {
-	p, vars, err := createPipelineAndVars(script, sourceEdge, scope, deadman, nil)
+func CreateTemplatePipeline(
+	script string,
+	sourceEdge EdgeType,
+	scope *stateful.Scope,
+	deadman DeadmanService,
+) (*TemplatePipeline, error) {
+	p, vars, err := createPipelineAndVars(script, sourceEdge, scope, deadman, nil, true)
 	if err != nil {
 		return nil, err
 	}
@@ -34,15 +39,28 @@ func CreateTemplatePipeline(script string, sourceEdge EdgeType, scope *stateful.
 
 // Create a pipeline from a given script.
 // tick:ignore
-func CreatePipeline(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService, predefinedVars map[string]tick.Var) (*Pipeline, error) {
-	p, _, err := createPipelineAndVars(script, sourceEdge, scope, deadman, predefinedVars)
+func CreatePipeline(
+	script string,
+	sourceEdge EdgeType,
+	scope *stateful.Scope,
+	deadman DeadmanService,
+	predefinedVars map[string]tick.Var,
+) (*Pipeline, error) {
+	p, _, err := createPipelineAndVars(script, sourceEdge, scope, deadman, predefinedVars, false)
 	if err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func createPipelineAndVars(script string, sourceEdge EdgeType, scope *stateful.Scope, deadman DeadmanService, predefinedVars map[string]tick.Var) (*Pipeline, map[string]tick.Var, error) {
+func createPipelineAndVars(
+	script string,
+	sourceEdge EdgeType,
+	scope *stateful.Scope,
+	deadman DeadmanService,
+	predefinedVars map[string]tick.Var,
+	ignoreMissingVars bool,
+) (*Pipeline, map[string]tick.Var, error) {
 	p := &Pipeline{
 		deadman: deadman,
 	}
@@ -59,7 +77,7 @@ func createPipelineAndVars(script string, sourceEdge EdgeType, scope *stateful.S
 	}
 	p.addSource(src)
 
-	vars, err := tick.Evaluate(script, scope, predefinedVars)
+	vars, err := tick.Evaluate(script, scope, predefinedVars, ignoreMissingVars)
 	if err != nil {
 		return nil, nil, err
 	}
