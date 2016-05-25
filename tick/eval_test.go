@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,7 +267,7 @@ var a string
 
 	expVars := map[string]tick.Var{
 		"a": {
-			Value: "",
+			Value: nil,
 			Type:  ast.TString,
 		},
 		"x": {
@@ -456,6 +457,11 @@ var boolean = TRUE
 var f = boolean AND FALSE
 var booleanZero bool
 var booleanCopy = boolean
+
+var lambda = lambda: "value" > 0
+var l = lambda: lambda OR "value" < -100
+var lambdaZero lambda
+var lambdaCopy = lambda
 `
 
 	scope := stateful.NewScope()
@@ -497,8 +503,78 @@ var booleanCopy = boolean
 		} else if !reflect.DeepEqual(got, value) {
 			t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
 		}
-		if got, exp := vars[name].Value, value; !reflect.DeepEqual(got, exp) {
-			t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+		if strings.Contains(name, "Zero") {
+			// Zero value vars should have nil default
+			if got, exp := vars[name].Value, interface{}(nil); got != exp {
+				t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+			}
+		} else {
+			if got, exp := vars[name].Value, value; !reflect.DeepEqual(got, exp) {
+				t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+			}
+		}
+		if got, exp := vars[name].Type, ast.TypeOf(value); got != exp {
+			t.Errorf("unexpected %s vars type: got %v exp %v", name, got, exp)
+		}
+	}
+
+	expLambda := &ast.LambdaNode{
+		Expression: &ast.BinaryNode{
+			Operator: ast.TokenGreater,
+			Left: &ast.ReferenceNode{
+				Reference: "value",
+			},
+			Right: &ast.NumberNode{
+				IsInt: true,
+				Int64: 0,
+			},
+		},
+	}
+	expNestedLambda := &ast.LambdaNode{
+		Expression: &ast.BinaryNode{
+			Operator: ast.TokenOr,
+			Left:     expLambda,
+			Right: &ast.BinaryNode{
+				Operator: ast.TokenLess,
+				Left: &ast.ReferenceNode{
+					Reference: "value",
+				},
+				Right: &ast.UnaryNode{
+					Operator: ast.TokenMinus,
+					Node: &ast.NumberNode{
+						IsInt: true,
+						Int64: 100,
+					},
+				},
+			},
+		},
+	}
+	// Use seperate map to better compare lambda nodes
+	expLambdas := map[string]*ast.LambdaNode{
+		"lambda":     expLambda,
+		"lambdaCopy": expLambda,
+		"l":          expNestedLambda,
+		"lambdaZero": nil,
+	}
+	for name, value := range expLambdas {
+		if got, err := scope.Get(name); err != nil {
+			t.Errorf("unexpected error for %s: %s", name, err)
+		} else if value == nil {
+			if got != (*ast.LambdaNode)(nil) {
+				t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
+			}
+		} else if !value.Equal(got) {
+			t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
+		}
+		if strings.Contains(name, "Zero") {
+			// Zero value vars should have interface{}(nil) default
+			if got, exp := vars[name].Value, interface{}(nil); got != exp {
+				t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+			}
+		} else {
+			if got, exp := vars[name].Value, value; !exp.Equal(got) {
+				t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+			}
 		}
 		if got, exp := vars[name].Type, ast.TypeOf(value); got != exp {
 			t.Errorf("unexpected %s vars type: got %v exp %v", name, got, exp)

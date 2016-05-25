@@ -76,7 +76,7 @@ type FromNode struct {
 
 	// An expression to filter the data stream.
 	// tick:ignore
-	Expression ast.Node `tick:"Where"`
+	Lambda *ast.LambdaNode `tick:"Where"`
 
 	// The dimensions by which to group to the data.
 	// tick:ignore
@@ -221,15 +221,15 @@ func (s *FromNode) From() *FromNode {
 //
 // If empty then all data points are considered to match.
 // tick:property
-func (s *FromNode) Where(expression ast.Node) *FromNode {
-	if s.Expression != nil {
-		s.Expression = &ast.BinaryNode{
+func (s *FromNode) Where(lambda *ast.LambdaNode) *FromNode {
+	if s.Lambda != nil {
+		s.Lambda.Expression = &ast.BinaryNode{
 			Operator: ast.TokenAnd,
-			Left:     s.Expression,
-			Right:    expression,
+			Left:     s.Lambda.Expression,
+			Right:    lambda.Expression,
 		}
 	} else {
-		s.Expression = expression
+		s.Lambda = lambda
 	}
 	return s
 }

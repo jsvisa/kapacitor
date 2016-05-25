@@ -20,22 +20,22 @@ type WhereNode struct {
 	chainnode
 	// The expression predicate.
 	// tick:ignore
-	Expression ast.Node
+	Lambda *ast.LambdaNode
 }
 
-func newWhereNode(wants EdgeType, predicate ast.Node) *WhereNode {
+func newWhereNode(wants EdgeType, predicate *ast.LambdaNode) *WhereNode {
 	return &WhereNode{
-		chainnode:  newBasicChainNode("where", wants, wants),
-		Expression: predicate,
+		chainnode: newBasicChainNode("where", wants, wants),
+		Lambda:    predicate,
 	}
 }
 
 // And another expression onto the existing expression.
-func (w *WhereNode) Where(expression ast.Node) *WhereNode {
-	w.Expression = &ast.BinaryNode{
+func (w *WhereNode) Where(lambda *ast.LambdaNode) *WhereNode {
+	w.Lambda.Expression = &ast.BinaryNode{
 		Operator: ast.TokenAnd,
-		Left:     w.Expression,
-		Right:    expression,
+		Left:     w.Lambda.Expression,
+		Right:    lambda.Expression,
 	}
 	return w
 }

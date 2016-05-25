@@ -203,6 +203,20 @@ func TestLexer(t *testing.T) {
 				token{TokenEOF, 3, ""},
 			},
 		},
+		{
+			in: "lambda:",
+			tokens: []token{
+				token{TokenLambda, 0, "lambda:"},
+				token{TokenEOF, 7, ""},
+			},
+		},
+		{
+			in: "lambda ",
+			tokens: []token{
+				token{TokenIdent, 0, "lambda"},
+				token{TokenEOF, 7, ""},
+			},
+		},
 		//Numbers
 		{
 			in: "42",

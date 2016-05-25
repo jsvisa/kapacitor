@@ -707,7 +707,7 @@ var y = x * 2`,
 								line: 1,
 								char: 9,
 							},
-							Node: &BinaryNode{
+							Expression: &BinaryNode{
 								position: position{
 									pos:  24,
 									line: 1,
@@ -1162,7 +1162,7 @@ var y = x * 2`,
 										line: 2,
 										char: 17,
 									},
-									Node: &BinaryNode{
+									Expression: &BinaryNode{
 										position: position{
 											pos:  43,
 											line: 2,
@@ -1222,7 +1222,7 @@ var y = x * 2`,
 									line: 1,
 									char: 8,
 								},
-								Node: &BinaryNode{
+								Expression: &BinaryNode{
 									position: position{
 										pos:  96,
 										line: 4,
@@ -1345,7 +1345,7 @@ AND
 									line: 1,
 									char: 8,
 								},
-								Node: &BinaryNode{
+								Expression: &BinaryNode{
 									position: position{
 										pos:  80,
 										line: 6,
@@ -1589,7 +1589,7 @@ stream.where(lambda: "value" > t)
 										line: 4,
 										char: 14,
 									},
-									Node: &BinaryNode{
+									Expression: &BinaryNode{
 										position: position{
 											pos:  101,
 											line: 4,

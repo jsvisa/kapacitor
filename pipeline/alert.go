@@ -198,13 +198,13 @@ type AlertNode struct {
 
 	// Filter expression for the INFO alert level.
 	// An empty value indicates the level is invalid and is skipped.
-	Info ast.Node
+	Info *ast.LambdaNode
 	// Filter expression for the WARNING alert level.
 	// An empty value indicates the level is invalid and is skipped.
-	Warn ast.Node
+	Warn *ast.LambdaNode
 	// Filter expression for the CRITICAL alert level.
 	// An empty value indicates the level is invalid and is skipped.
-	Crit ast.Node
+	Crit *ast.LambdaNode
 
 	//tick:ignore
 	UseFlapping bool `tick:"Flapping"`

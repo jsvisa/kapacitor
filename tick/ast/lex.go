@@ -431,9 +431,12 @@ func lexIdentOrKeyword(l *lexer) stateFn {
 			l.backup()
 			if t := keywords[l.current()]; t > 0 {
 				if t == TokenLambda && l.next() != ':' {
-					return l.errorf("missing ':' on lambda keyword")
+					// 'lambda' is a valid identifier.
+					l.backup()
+					l.emit(TokenIdent)
+				} else {
+					l.emit(t)
 				}
-				l.emit(t)
 			} else {
 				l.emit(TokenIdent)
 			}

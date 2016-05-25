@@ -258,7 +258,7 @@ const intervalMarker = "INTERVAL"
 //    //Do normal processing of data
 //    data...
 //
-func (n *node) Deadman(threshold float64, interval time.Duration, expr ...ast.Node) *AlertNode {
+func (n *node) Deadman(threshold float64, interval time.Duration, expr ...*ast.LambdaNode) *AlertNode {
 	dn := n.Stats(interval).
 		Derivative("emitted").NonNegative()
 	dn.Unit = interval
@@ -282,7 +282,7 @@ func (n *node) Deadman(threshold float64, interval time.Duration, expr ...ast.No
 			Right:    e,
 		}
 	}
-	an.Crit = critExpr
+	an.Crit = &ast.LambdaNode{Expression: critExpr}
 	// Replace NODE_NAME with actual name of the node in the Id.
 	an.Id = strings.Replace(n.pipeline().deadman.Id(), nodeNameMarker, n.Name(), 1)
 	// Set the message on the alert node.
@@ -308,7 +308,7 @@ func newBasicChainNode(desc string, wants, provides EdgeType) chainnode {
 }
 
 // Create a new node that filters the data stream by a given expression.
-func (n *chainnode) Where(expression ast.Node) *WhereNode {
+func (n *chainnode) Where(expression *ast.LambdaNode) *WhereNode {
 	w := newWhereNode(n.provides, expression)
 	n.linkChild(w)
 	return w
@@ -356,7 +356,7 @@ func (n *chainnode) Join(others ...Node) *JoinNode {
 // Create an eval node that will evaluate the given transformation function to each data point.
 //  A list of expressions may be provided and will be evaluated in the order they are given
 // and results of previous expressions are made available to later expressions.
-func (n *chainnode) Eval(expressions ...ast.Node) *EvalNode {
+func (n *chainnode) Eval(expressions ...*ast.LambdaNode) *EvalNode {
 	e := newEvalNode(n.provides, expressions)
 	n.linkChild(e)
 	return e

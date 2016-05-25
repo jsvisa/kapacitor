@@ -391,23 +391,25 @@ func (vs *Vars) UnmarshalJSON(b []byte) error {
 	}
 	*vs = make(Vars)
 	for name, v := range data {
-		var err error
-		switch v.Type {
-		case VarInt:
-			n, ok := v.Value.(json.Number)
-			if !ok {
-				return fmt.Errorf("invalid var %v: expected int value", v)
+		if v.Value != nil {
+			var err error
+			switch v.Type {
+			case VarInt:
+				n, ok := v.Value.(json.Number)
+				if !ok {
+					return fmt.Errorf("invalid var %v: expected int value", v)
+				}
+				v.Value, err = n.Int64()
+			case VarFloat:
+				n, ok := v.Value.(json.Number)
+				if !ok {
+					return fmt.Errorf("invalid var %v: expected float value", v)
+				}
+				v.Value, err = n.Float64()
 			}
-			v.Value, err = n.Int64()
-		case VarFloat:
-			n, ok := v.Value.(json.Number)
-			if !ok {
-				return fmt.Errorf("invalid var %v: expected float value", v)
+			if err != nil {
+				return fmt.Errorf("invalid var %v: %s", v, err)
 			}
-			v.Value, err = n.Float64()
-		}
-		if err != nil {
-			return fmt.Errorf("invalid var %v: %s", v, err)
 		}
 		(*vs)[name] = v
 	}

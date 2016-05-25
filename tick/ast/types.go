@@ -2,6 +2,7 @@ package ast
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
 )
@@ -17,6 +18,7 @@ const (
 	TRegex
 	TTime
 	TDuration
+	TLambda
 )
 
 func (v ValueType) String() string {
@@ -35,6 +37,8 @@ func (v ValueType) String() string {
 		return "time"
 	case TDuration:
 		return "duration"
+	case TLambda:
+		return "lambda"
 	}
 
 	return "invalid type"
@@ -56,6 +60,8 @@ func TypeOf(v interface{}) ValueType {
 		return TTime
 	case time.Duration:
 		return TDuration
+	case *LambdaNode:
+		return TLambda
 	default:
 		return InvalidType
 	}
@@ -77,7 +83,59 @@ func ZeroValue(t ValueType) interface{} {
 		return time.Time{}
 	case TDuration:
 		return time.Duration(0)
+	case TLambda:
+		return (*LambdaNode)(nil)
 	default:
 		return errors.New("invalid type")
+	}
+}
+
+// Convert raw value to literal node, for all supported basic types.
+func ValueToLiteralNode(pos Position, v interface{}) (Node, error) {
+	p := position{
+		pos:  pos.Position(),
+		line: pos.Line(),
+		char: pos.Char(),
+	}
+	switch value := v.(type) {
+	case bool:
+		return &BoolNode{
+			position: p,
+			Bool:     value,
+		}, nil
+	case int64:
+		return &NumberNode{
+			position: p,
+			IsInt:    true,
+			Int64:    value,
+		}, nil
+	case float64:
+		return &NumberNode{
+			position: p,
+			IsFloat:  true,
+			Float64:  value,
+		}, nil
+	case time.Duration:
+		return &DurationNode{
+			position: p,
+			Dur:      value,
+		}, nil
+	case string:
+		return &StringNode{
+			position: p,
+			Literal:  value,
+		}, nil
+	case *regexp.Regexp:
+		return &RegexNode{
+			position: p,
+			Regex:    value,
+		}, nil
+	case *LambdaNode:
+		return &LambdaNode{
+			position:   p,
+			Expression: value.Expression,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported literal type %T", v)
 	}
 }

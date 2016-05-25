@@ -147,11 +147,11 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack, predefinedVars, defaul
 		}
 		stck.Push(value)
 	case *ast.LambdaNode:
-		node.Node, err = resolveIdents(node.Node, scope)
+		node.Expression, err = resolveIdents(node.Expression, scope)
 		if err != nil {
 			return
 		}
-		stck.Push(node.Node)
+		stck.Push(node)
 	case *ast.TypeDeclarationNode:
 		err = evalTypeDeclaration(node, scope, predefinedVars, defaultVars, ignoreMissingVars)
 		if err != nil {
@@ -278,18 +278,19 @@ func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, p
 		actualType = ast.TRegex
 	case "duration":
 		actualType = ast.TDuration
+	case "lambda":
+		actualType = ast.TLambda
 	default:
-		return fmt.Errorf("invalid var type %s", node.Type.Ident)
+		return fmt.Errorf("invalid var type %q", node.Type.Ident)
 	}
 	name := node.Node.Ident
-	zeroValue := ast.ZeroValue(actualType)
 	desc := ""
 	if node.Comment != nil {
 		desc = node.Comment.CommentString()
 	}
 	defaultVars[name] = Var{
 		Type:        actualType,
-		Value:       zeroValue,
+		Value:       nil,
 		Description: desc,
 	}
 
@@ -300,7 +301,7 @@ func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, p
 		scope.Set(name, predefinedValue.Value)
 	} else if ignoreMissingVars {
 		// Set zero value on scope, so execution can continue
-		scope.Set(name, zeroValue)
+		scope.Set(name, ast.ZeroValue(actualType))
 	} else {
 		return fmt.Errorf("missing value for var %q.", name)
 	}

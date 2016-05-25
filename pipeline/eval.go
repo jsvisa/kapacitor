@@ -28,7 +28,7 @@ type EvalNode struct {
 	AsList []string `tick:"As"`
 
 	// tick:ignore
-	Expressions []ast.Node
+	Lambdas []*ast.LambdaNode
 
 	// tick:ignore
 	KeepFlag bool `tick:"Keep"`
@@ -42,10 +42,10 @@ type EvalNode struct {
 	QuiteFlag bool `tick:"Quiet"`
 }
 
-func newEvalNode(e EdgeType, exprs []ast.Node) *EvalNode {
+func newEvalNode(e EdgeType, exprs []*ast.LambdaNode) *EvalNode {
 	n := &EvalNode{
-		chainnode:   newBasicChainNode("eval", e, e),
-		Expressions: exprs,
+		chainnode: newBasicChainNode("eval", e, e),
+		Lambdas:   exprs,
 	}
 	return n
 }
