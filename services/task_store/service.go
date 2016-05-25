@@ -920,7 +920,6 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		httpd.HttpError(w, "task does not exist, cannot update", true, http.StatusNotFound)
 		return
 	}
-	log.Println("existing", existing.Vars)
 
 	if task.TemplateID != "" {
 		template, err := ts.templates.Get(task.TemplateID)
@@ -1039,6 +1038,8 @@ func (ts *Service) convertToServiceVars(cvars client.Vars) (map[string]Var, erro
 			typ = VarRegex
 		case client.VarDuration:
 			typ = VarDuration
+		case client.VarLambda:
+			typ = VarLambda
 		}
 		v, err := newVar(value.Value, typ, value.Description)
 		if err != nil {
@@ -1067,6 +1068,9 @@ func (ts *Service) convertToClientVars(svars map[string]Var) (client.Vars, error
 		case VarDuration:
 			v = value.DurationValue
 			typ = client.VarDuration
+		case VarLambda:
+			v = value.LambdaValue
+			typ = client.VarLambda
 		case VarString:
 			v = value.StringValue
 			typ = client.VarString
@@ -1099,6 +1103,9 @@ func (ts *Service) convertToClientVarsFromTick(kvars map[string]tick.Var) (clien
 			typ = client.VarFloat
 		case ast.TDuration:
 			typ = client.VarDuration
+		case ast.TLambda:
+			typ = client.VarLambda
+			v = v.(*ast.LambdaNode).ExpressionString()
 		case ast.TString:
 			typ = client.VarString
 		case ast.TRegex:
@@ -1134,12 +1141,19 @@ func (ts *Service) convertToTickVarsFromService(svars map[string]Var) (map[strin
 		case VarDuration:
 			typ = ast.TDuration
 			v = value.DurationValue
+		case VarLambda:
+			typ = ast.TLambda
+			l, err := ast.ParseLambda(value.LambdaValue)
+			if err != nil {
+				return nil, errors.Wrapf(err, "var %s has invalid lambda expression", name)
+			}
+			v = l
 		case VarString:
 			typ = ast.TString
 			v = value.StringValue
 		case VarRegex:
 			typ = ast.TRegex
-			r, err := regexp.Compile(value.StringValue)
+			r, err := regexp.Compile(value.RegexValue)
 			if err != nil {
 				return nil, errors.Wrapf(err, "var %s has invalid regex pattern", name)
 			}
@@ -1459,7 +1473,6 @@ func (ts *Service) handleCreateTemplate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
-	log.Println("handleUpdateTemplate")
 	id, err := ts.templateIDFromPath(r.URL.Path)
 	if err != nil {
 		httpd.HttpError(w, err.Error(), true, http.StatusBadRequest)
@@ -1510,7 +1523,6 @@ func (ts *Service) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) 
 
 	// Update all associated tasks
 	taskIds, err := ts.templates.ListAssociatedTasks(existing.ID)
-	log.Println("list taskIds", taskIds)
 	if err != nil {
 		httpd.HttpError(w, fmt.Sprintf("error getting associated tasks for template %s: %s", existing.ID, err), true, http.StatusInternalServerError)
 		return

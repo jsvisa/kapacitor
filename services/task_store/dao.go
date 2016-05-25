@@ -610,6 +610,7 @@ const (
 	VarString
 	VarRegex
 	VarDuration
+	VarLambda
 )
 
 func (vt VarType) String() string {
@@ -628,6 +629,8 @@ func (vt VarType) String() string {
 		return "regex"
 	case VarDuration:
 		return "duration"
+	case VarLambda:
+		return "lambda"
 	default:
 		return "invalid"
 	}
@@ -640,6 +643,7 @@ type Var struct {
 	StringValue   string
 	RegexValue    string
 	DurationValue time.Duration
+	LambdaValue   string
 
 	Type        VarType
 	Description string
@@ -665,6 +669,8 @@ func newVar(value interface{}, typ VarType, desc string) (Var, error) {
 		g.Type = VarDuration
 	case string:
 		switch typ {
+		case VarLambda:
+			g.LambdaValue = v
 		case VarRegex:
 			g.RegexValue = v
 		case VarString:

@@ -40,3 +40,6 @@ func (n *EvalDurationNode) EvalTime(scope *Scope, executionState ExecutionState)
 func (n *EvalDurationNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return n.Duration, nil
 }
+func (n *EvalDurationNode) IsDynamic() bool {
+	return false
+}

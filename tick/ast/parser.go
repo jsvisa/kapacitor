@@ -8,12 +8,12 @@ import (
 
 // tree is the representation of a parsed dsl script.
 type parser struct {
-	Text string //the text being parsed
-	Root Node   // top-level root of the tree
+	// the text being parsed
+	text string
 
-	// Parsing only; cleared after parse.
-	lex       *lexer
-	token     [2]token //two-token lookahead for parser
+	lex *lexer
+	// two-token lookahead for parser
+	token     [2]token
 	peekCount int
 
 	// Current comment node.
@@ -26,15 +26,25 @@ type parser struct {
 // is returned with the error.
 func Parse(text string) (Node, error) {
 	p := &parser{}
-	err := p.Parse(text)
+	n, err := p.parse(text)
 	if err != nil {
 		return nil, err
 	}
-	return p.Root, nil
+	return n, nil
+}
+
+// Parse returns a LambdaNode, created by parsing a lambda expression.
+func ParseLambda(text string) (*LambdaNode, error) {
+	p := &parser{}
+	l, err := p.parseLambda(text)
+	if err != nil {
+		return nil, err
+	}
+	return l, nil
 }
 
 func (p *parser) hasNewLine(start, end int) bool {
-	return strings.IndexRune(p.Text[start:end], '\n') != -1
+	return strings.IndexRune(p.text[start:end], '\n') != -1
 }
 
 // --------------------
@@ -93,7 +103,6 @@ func (p *parser) consumeComment() *CommentNode {
 
 // errorf formats the error and terminates processing.
 func (p *parser) errorf(format string, args ...interface{}) {
-	p.Root = nil
 	format = fmt.Sprintf("parser: %s", format)
 	panic(fmt.Errorf(format, args...))
 }
@@ -120,15 +129,15 @@ func (p *parser) unexpected(tok token, expected ...TokenType) {
 		start = 0
 	}
 	// Skip any new lines just show a single line
-	if i := strings.LastIndexByte(p.Text[start:tok.pos], '\n'); i != -1 {
+	if i := strings.LastIndexByte(p.text[start:tok.pos], '\n'); i != -1 {
 		start = start + i + 1
 	}
 	stop := tok.pos + bufSize
-	if stop > len(p.Text) {
-		stop = len(p.Text)
+	if stop > len(p.text) {
+		stop = len(p.text)
 	}
 	// Skip any new lines just show a single line
-	if i := strings.IndexByte(p.Text[tok.pos:stop], '\n'); i != -1 {
+	if i := strings.IndexByte(p.text[tok.pos:stop], '\n'); i != -1 {
 		stop = tok.pos + i
 	}
 	line, char := p.lex.lineNumber(tok.pos)
@@ -141,7 +150,7 @@ func (p *parser) unexpected(tok token, expected ...TokenType) {
 	if tok.typ == TokenError {
 		tokStr = tok.val
 	}
-	p.errorf("unexpected %s line %d char %d in \"%s\". expected: %s", tokStr, line, char, p.Text[start:stop], expectedStr)
+	p.errorf("unexpected %s line %d char %d in \"%s\". expected: %s", tokStr, line, char, p.text[start:stop], expectedStr)
 }
 
 func (p *parser) position(pos int) position {
@@ -175,20 +184,31 @@ func (p *parser) stopParse() {
 
 // Parse parses the expression definition string to construct a representation
 // of the expression for execution.
-func (p *parser) Parse(text string) (err error) {
+func (p *parser) parse(text string) (n Node, err error) {
 	defer p.recover(&err)
 	p.lex = lex(text)
-	p.Text = text
-	p.parse()
+	p.text = text
+
+	// Parse complete program
+	n = p.program()
+	p.expect(TokenEOF)
+
 	p.stopParse()
-	return nil
+	return
 }
 
-// parse is the top-level parser for an expression.
-// It runs to EOF.
-func (p *parser) parse() {
-	p.Root = p.program()
+// Parse parses only a lambda expression starting after the lambda: keyword
+func (p *parser) parseLambda(text string) (n *LambdaNode, err error) {
+	defer p.recover(&err)
+	p.lex = lex(text)
+	p.text = text
+
+	l := p.primaryExpr()
+	n = newLambda(p.position(0), l, nil)
 	p.expect(TokenEOF)
+
+	p.stopParse()
+	return
 }
 
 //parse a complete program
@@ -261,10 +281,7 @@ func (p *parser) expression() Node {
 			return p.primaryExpr()
 		}
 	case TokenLambda:
-		lambda := p.next()
-		lambdaC := p.consumeComment()
-		l := p.primaryExpr()
-		return newLambda(p.position(lambda.pos), l, lambdaC)
+		return p.lambda()
 	default:
 		return p.primaryExpr()
 	}
@@ -344,17 +361,21 @@ func (p *parser) parameter() (n Node) {
 	case TokenIdent:
 		n = p.expression()
 	case TokenLambda:
-		lambda := p.next()
-		c := p.consumeComment()
-		l := p.primaryExpr()
-		n = newLambda(p.position(lambda.pos), l, c)
+		n = p.lambda()
 	default:
 		n = p.primary()
 	}
 	return
 }
 
-// parse the lambda expression.
+func (p *parser) lambda() *LambdaNode {
+	lambda := p.next()
+	c := p.consumeComment()
+	l := p.primaryExpr()
+	return newLambda(p.position(lambda.pos), l, c)
+}
+
+// parse a primary expression
 func (p *parser) primaryExpr() Node {
 	return p.precedence(p.primary(), 0)
 }

@@ -43,6 +43,10 @@ func (n *EvalFunctionNode) Type(scope ReadOnlyScope, executionState ExecutionSta
 	return ast.TypeOf(result), nil
 }
 
+func (n *EvalFunctionNode) IsDynamic() bool {
+	return true
+}
+
 // callFunction - core method for evaluating function where all NodeEvaluator methods should use
 func (n *EvalFunctionNode) callFunction(scope *Scope, executionState ExecutionState) (interface{}, error) {
 	args := make([]interface{}, 0, len(n.argsEvaluators))

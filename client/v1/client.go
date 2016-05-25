@@ -330,6 +330,7 @@ const (
 	VarString
 	VarRegex
 	VarDuration
+	VarLambda
 )
 
 func (vt VarType) MarshalText() ([]byte, error) {
@@ -346,6 +347,8 @@ func (vt VarType) MarshalText() ([]byte, error) {
 		return []byte("regex"), nil
 	case VarDuration:
 		return []byte("duration"), nil
+	case VarLambda:
+		return []byte("lambda"), nil
 	default:
 		return nil, fmt.Errorf("unknown VarType %d", vt)
 	}
@@ -365,6 +368,8 @@ func (vt *VarType) UnmarshalText(text []byte) error {
 		*vt = VarRegex
 	case "duration":
 		*vt = VarDuration
+	case "lambda":
+		*vt = VarLambda
 	default:
 		return fmt.Errorf("unknown VarType %s", s)
 	}
@@ -394,6 +399,14 @@ func (vs *Vars) UnmarshalJSON(b []byte) error {
 		if v.Value != nil {
 			var err error
 			switch v.Type {
+			case VarDuration:
+				n, ok := v.Value.(json.Number)
+				if !ok {
+					return fmt.Errorf("invalid var %v: expected int value", v)
+				}
+				var i int64
+				i, err = n.Int64()
+				v.Value = time.Duration(i)
 			case VarInt:
 				n, ok := v.Value.(json.Number)
 				if !ok {

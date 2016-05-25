@@ -39,3 +39,6 @@ func (n *EvalIntNode) EvalTime(scope *Scope, executionState ExecutionState) (tim
 func (n *EvalIntNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TInt}
 }
+func (n *EvalIntNode) IsDynamic() bool {
+	return false
+}

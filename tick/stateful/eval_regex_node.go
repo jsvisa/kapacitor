@@ -40,3 +40,6 @@ func (n *EvalRegexNode) EvalTime(scope *Scope, executionState ExecutionState) (t
 func (n *EvalRegexNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TRegex}
 }
+func (n *EvalRegexNode) IsDynamic() bool {
+	return false
+}

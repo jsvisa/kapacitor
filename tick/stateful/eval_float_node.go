@@ -39,3 +39,6 @@ func (n *EvalFloatNode) EvalTime(scope *Scope, executionState ExecutionState) (t
 func (n *EvalFloatNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TFloat}
 }
+func (n *EvalFloatNode) IsDynamic() bool {
+	return false
+}

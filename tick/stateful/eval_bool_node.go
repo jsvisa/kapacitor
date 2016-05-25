@@ -41,3 +41,6 @@ func (n *EvalBoolNode) EvalTime(scope *Scope, executionState ExecutionState) (ti
 func (n *EvalBoolNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TBool}
 }
+func (n *EvalBoolNode) IsDynamic() bool {
+	return false
+}

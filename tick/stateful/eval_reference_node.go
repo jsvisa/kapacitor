@@ -34,6 +34,10 @@ func (n *EvalReferenceNode) Type(scope ReadOnlyScope, executionState ExecutionSt
 	return ast.TypeOf(value), nil
 }
 
+func (n *EvalReferenceNode) IsDynamic() bool {
+	return true
+}
+
 func (n *EvalReferenceNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
 	refValue, err := n.getReferenceValue(scope, executionState)
 	if err != nil {

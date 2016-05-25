@@ -74,17 +74,18 @@ type EvalBinaryNode struct {
 	rightEvaluator NodeEvaluator
 	rightType      ast.ValueType
 
-	// Return type
-	returnType ast.ValueType
+	// Constant return type
+	// If InvalidType then this node is dynamic.
+	constReturnType ast.ValueType
 }
 
 func NewEvalBinaryNode(node *ast.BinaryNode) (*EvalBinaryNode, error) {
 	if !ast.IsExprOperator(node.Operator) {
 		return nil, fmt.Errorf("unknown binary operator %v", node.Operator)
 	}
-	expression := &EvalBinaryNode{
-		operator:   node.Operator,
-		returnType: getConstantNodeType(node),
+	b := &EvalBinaryNode{
+		operator:        node.Operator,
+		constReturnType: getConstantNodeType(node),
 	}
 
 	leftSideEvaluator, err := createNodeEvaluator(node.Left)
@@ -97,26 +98,27 @@ func NewEvalBinaryNode(node *ast.BinaryNode) (*EvalBinaryNode, error) {
 		return nil, fmt.Errorf("Failed to handle right node: %v", err)
 	}
 
-	expression.leftEvaluator = leftSideEvaluator
-	expression.rightEvaluator = rightSideEvaluator
+	b.leftEvaluator = leftSideEvaluator
 
-	if isDynamicNode(node.Left) || isDynamicNode(node.Right) {
-		expression.evaluationFn = expression.evaluateDynamicNode
+	b.rightEvaluator = rightSideEvaluator
+
+	if b.leftEvaluator.IsDynamic() || b.rightEvaluator.IsDynamic() {
+		b.evaluationFn = b.evaluateDynamicNode
 	} else {
-		expression.leftType = getConstantNodeType(node.Left)
-		expression.rightType = getConstantNodeType(node.Right)
+		b.leftType = getConstantNodeType(node.Left)
+		b.rightType = getConstantNodeType(node.Right)
 
-		expression.evaluationFn = expression.lookupEvaluationFn()
-		if expression.evaluationFn == nil {
-			return nil, expression.determineError(nil, ExecutionState{})
+		b.evaluationFn = b.lookupEvaluationFn()
+		if b.evaluationFn == nil {
+			return nil, b.determineError(nil, ExecutionState{})
 		}
 	}
 
-	return expression, nil
+	return b, nil
 }
 
 func (n *EvalBinaryNode) Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error) {
-	if n.returnType == ast.InvalidType {
+	if n.constReturnType == ast.InvalidType {
 		var err error
 		// We are dynamic and we need to figure out our type
 		n.leftType, err = n.leftEvaluator.Type(scope, executionState)
@@ -134,15 +136,22 @@ func (n *EvalBinaryNode) Type(scope ReadOnlyScope, executionState ExecutionState
 		}
 		return typ, nil
 	}
-	return n.returnType, nil
+	return n.constReturnType, nil
+}
+
+func (n *EvalBinaryNode) IsDynamic() bool {
+	if n.constReturnType != ast.InvalidType {
+		return false
+	}
+	return n.leftEvaluator.IsDynamic() || n.rightEvaluator.IsDynamic()
 }
 
 func (n *EvalBinaryNode) EvalRegex(scope *Scope, executionState ExecutionState) (*regexp.Regexp, error) {
-	return nil, ErrTypeGuardFailed{RequestedType: ast.TRegex, ActualType: n.returnType}
+	return nil, ErrTypeGuardFailed{RequestedType: ast.TRegex, ActualType: n.constReturnType}
 }
 
 func (n *EvalBinaryNode) EvalTime(scope *Scope, executionState ExecutionState) (time.Time, error) {
-	return time.Time{}, ErrTypeGuardFailed{RequestedType: ast.TTime, ActualType: n.returnType}
+	return time.Time{}, ErrTypeGuardFailed{RequestedType: ast.TTime, ActualType: n.constReturnType}
 }
 
 func (e *EvalBinaryNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
@@ -200,7 +209,7 @@ func (e *EvalBinaryNode) EvalFloat(scope *Scope, executionState ExecutionState) 
 		return float64(0), ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: ast.TInt}
 	}
 
-	return float64(0), ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: e.returnType}
+	return float64(0), ErrTypeGuardFailed{RequestedType: ast.TFloat, ActualType: e.constReturnType}
 }
 
 func (e *EvalBinaryNode) EvalInt(scope *Scope, executionState ExecutionState) (int64, error) {
@@ -217,7 +226,7 @@ func (e *EvalBinaryNode) EvalInt(scope *Scope, executionState ExecutionState) (i
 		return int64(0), ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: ast.TFloat}
 	}
 
-	return int64(0), ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: e.returnType}
+	return int64(0), ErrTypeGuardFailed{RequestedType: ast.TInt, ActualType: e.constReturnType}
 
 }
 

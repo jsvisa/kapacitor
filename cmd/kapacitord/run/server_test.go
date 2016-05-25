@@ -804,13 +804,15 @@ stream
     |count(field)
     |httpOut('count')
 `
-	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+	if _, err := cli.CreateTemplate(client.CreateTemplateOptions{
 		ID:         templateId,
 		Type:       ttype,
 		TICKscript: tick,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = cli.CreateTask(client.CreateTaskOptions{
+	if _, err := cli.CreateTask(client.CreateTaskOptions{
 		ID:         taskId,
 		TemplateID: templateId,
 		DBRPs:      dbrps,
@@ -821,8 +823,7 @@ stream
 				Type:  client.VarString,
 			},
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -830,8 +831,7 @@ stream
 
 	// Request data before any writes and expect null responses
 	nullResponse := `{}`
-	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 
@@ -858,8 +858,7 @@ test value=1 0000000011
 	s.MustWrite("mydb", "myrp", points, v)
 
 	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
-	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 }
@@ -885,23 +884,142 @@ stream
     |count(field)
     |httpOut('count')
 `
-	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+	if _, err := cli.CreateTemplate(client.CreateTemplateOptions{
 		ID:         templateId,
 		Type:       ttype,
 		TICKscript: tick,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = cli.CreateTask(client.CreateTaskOptions{
+	if _, err := cli.CreateTask(client.CreateTaskOptions{
 		ID:         taskId,
 		TemplateID: templateId,
 		DBRPs:      dbrps,
 		Status:     client.Enabled,
-	})
-	if err == nil {
+	}); err == nil {
 		t.Error("expected error for missing task vars")
-	}
-	if exp, got := "invalid TICKscript: missing value for var \"field\".", err.Error(); got != exp {
+	} else if exp, got := "invalid TICKscript: missing value for var \"field\".", err.Error(); got != exp {
 		t.Errorf("unexpected error message: got %s exp %s", got, exp)
+	}
+}
+func TestServer_StreamTemplateTask_AllTypes(t *testing.T) {
+	s, cli := OpenDefaultServer()
+	defer s.Close()
+
+	templateId := "testStreamTemplate"
+	taskId := "testStreamTask"
+	ttype := client.StreamTask
+	dbrps := []client.DBRP{{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}}
+	tick := `
+var bool bool
+var count_threshold int
+var value_threshold float
+var window duration
+var field string
+var tagMatch regex
+var match lambda
+var eval lambda
+stream
+    |from()
+        .measurement('test')
+        .where(lambda: match AND "tag" =~ tagMatch AND bool AND "value" >= value_threshold)
+    |window()
+        .period(window)
+        .every(window)
+    |count(field)
+    |where(lambda: "count" >= count_threshold)
+    |eval(eval)
+        .as('count')
+    |httpOut('count')
+`
+	if _, err := cli.CreateTemplate(client.CreateTemplateOptions{
+		ID:         templateId,
+		Type:       ttype,
+		TICKscript: tick,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := cli.CreateTask(client.CreateTaskOptions{
+		ID:         taskId,
+		TemplateID: templateId,
+		DBRPs:      dbrps,
+		Status:     client.Enabled,
+		Vars: client.Vars{
+			"bool": {
+				Value: true,
+				Type:  client.VarBool,
+			},
+			"count_threshold": {
+				Value: int64(10),
+				Type:  client.VarInt,
+			},
+			"value_threshold": {
+				Value: float64(1.0),
+				Type:  client.VarFloat,
+			},
+			"window": {
+				Value: 10 * time.Second,
+				Type:  client.VarDuration,
+			},
+			"field": {
+				Value: "value",
+				Type:  client.VarString,
+			},
+			"tagMatch": {
+				Value: "^a.*",
+				Type:  client.VarRegex,
+			},
+			"match": {
+				Value: `"value" == 1.0`,
+				Type:  client.VarLambda,
+			},
+			"eval": {
+				Value: `"count" * 2`,
+				Type:  client.VarLambda,
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := fmt.Sprintf("%s/tasks/%s/count", s.URL(), taskId)
+
+	// Request data before any writes and expect null responses
+	nullResponse := `{}`
+	if err := s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5); err != nil {
+		t.Error(err)
+	}
+
+	points := `test,tag=abc value=1 0000000000
+test,tag=abc value=1 0000000001
+test,tag=bbc value=1 0000000001
+test,tag=abc value=1 0000000002
+test,tag=abc value=0 0000000002
+test,tag=abc value=1 0000000003
+test,tag=abc value=1 0000000003
+test,tag=abc value=1 0000000004
+test,tag=abc value=1 0000000005
+test,tag=abc value=1 0000000005
+test,tag=bbc value=1 0000000005
+test,tag=abc value=1 0000000006
+test,tag=abc value=1 0000000007
+test,tag=abc value=0 0000000008
+test,tag=abc value=1 0000000009
+test,tag=abc value=1 0000000010
+test,tag=abc value=1 0000000011
+`
+	v := url.Values{}
+	v.Add("precision", "s")
+	s.MustWrite("mydb", "myrp", points, v)
+
+	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",22]]}]}`
+	if err := s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5); err != nil {
+		t.Error(err)
 	}
 }
 
@@ -927,11 +1045,13 @@ stream
     |count(field)
     |httpOut('count')
 `
-	_, err := cli.CreateTemplate(client.CreateTemplateOptions{
+	if _, err := cli.CreateTemplate(client.CreateTemplateOptions{
 		ID:         templateId,
 		Type:       ttype,
 		TICKscript: tick,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	task, err := cli.CreateTask(client.CreateTaskOptions{
 		ID:         taskId,
@@ -949,10 +1069,9 @@ stream
 		t.Fatal(err)
 	}
 
-	err = cli.UpdateTask(task.Link, client.UpdateTaskOptions{
+	if err := cli.UpdateTask(task.Link, client.UpdateTaskOptions{
 		Status: client.Enabled,
-	})
-	if err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -960,8 +1079,7 @@ stream
 
 	// Request data before any writes and expect null responses
 	nullResponse := `{}`
-	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 
@@ -988,8 +1106,7 @@ test value=1 0000000011
 	s.MustWrite("mydb", "myrp", points, v)
 
 	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
-	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 }
@@ -1030,8 +1147,11 @@ stream
 		Type:       ttype,
 		TICKscript: tickWrong,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = cli.CreateTask(client.CreateTaskOptions{
+	if _, err = cli.CreateTask(client.CreateTaskOptions{
 		ID:         taskId,
 		TemplateID: templateId,
 		DBRPs:      dbrps,
@@ -1042,8 +1162,7 @@ stream
 				Type:  client.VarString,
 			},
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1057,8 +1176,7 @@ stream
 
 	// Request data before any writes and expect null responses
 	nullResponse := `{}`
-	err = s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, nullResponse, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 
@@ -1085,8 +1203,7 @@ test value=1 0000000011
 	s.MustWrite("mydb", "myrp", points, v)
 
 	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",15]]}]}`
-	err = s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5)
-	if err != nil {
+	if err := s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}
 }

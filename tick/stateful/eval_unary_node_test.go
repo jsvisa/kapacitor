@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/influxdata/kapacitor/tick/stateful"
@@ -110,6 +111,28 @@ func TestEvalUnaryNode_EvalInt64_Sanity(t *testing.T) {
 
 	if result != int64(-12) {
 		t.Errorf("unexpected result: got: %T(%v), expected: int64(-12)", result, result)
+	}
+}
+
+func TestEvalUnaryNode_EvalDuration_Sanity(t *testing.T) {
+	evaluator, err := stateful.NewEvalUnaryNode(&ast.UnaryNode{
+		Operator: ast.TokenMinus,
+		Node: &ast.DurationNode{
+			Dur: 12 * time.Hour,
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to compile unary node: %v", err)
+	}
+
+	result, err := evaluator.EvalDuration(stateful.NewScope(), stateful.CreateExecutionState())
+	if err != nil {
+		t.Errorf("Got unexpected error: %v", err)
+	}
+
+	if got, exp := result, -12*time.Hour; got != exp {
+		t.Errorf("unexpected result: got: %T(%v), expected: %s", got, got, exp)
 	}
 }
 

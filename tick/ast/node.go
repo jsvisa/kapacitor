@@ -873,6 +873,15 @@ func (n *LambdaNode) Equal(o interface{}) bool {
 	return false
 }
 
+func (n *LambdaNode) ExpressionString() string {
+	if n.Expression == nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	n.Expression.Format(&buf, "", true)
+	return buf.String()
+}
+
 //Holds a function call with its args
 type ListNode struct {
 	position

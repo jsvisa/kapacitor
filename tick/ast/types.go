@@ -131,9 +131,13 @@ func ValueToLiteralNode(pos Position, v interface{}) (Node, error) {
 			Regex:    value,
 		}, nil
 	case *LambdaNode:
+		var e Node
+		if value != nil {
+			e = value.Expression
+		}
 		return &LambdaNode{
 			position:   p,
-			Expression: value.Expression,
+			Expression: e,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported literal type %T", v)

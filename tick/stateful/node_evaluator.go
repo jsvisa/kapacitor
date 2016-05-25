@@ -37,6 +37,8 @@ type NodeEvaluator interface {
 
 	// Type returns the type of ast.ValueType
 	Type(scope ReadOnlyScope, executionState ExecutionState) (ast.ValueType, error)
+	// Whether the type returned by the node can change.
+	IsDynamic() bool
 }
 
 func createNodeEvaluator(n ast.Node) (NodeEvaluator, error) {
@@ -77,6 +79,9 @@ func createNodeEvaluator(n ast.Node) (NodeEvaluator, error) {
 
 	case *ast.UnaryNode:
 		return NewEvalUnaryNode(node)
+
+	case *ast.LambdaNode:
+		return NewEvalLambdaNode(node)
 	}
 
 	return nil, fmt.Errorf("Given node type is not valid evaluation node: %T", n)
@@ -117,25 +122,17 @@ func getConstantNodeType(n ast.Node) ast.ValueType {
 		}
 
 	case *ast.BinaryNode:
+		// Check first using only the operator
+		if ast.IsCompOperator(node.Operator) || ast.IsLogicalOperator(node.Operator) {
+			return ast.TBool
+		}
 		leftType := getConstantNodeType(node.Left)
 		rightType := getConstantNodeType(node.Right)
+		// Check known constant types
 		return binaryConstantTypes[operationKey{operator: node.Operator, leftType: leftType, rightType: rightType}]
+	case *ast.LambdaNode:
+		return getConstantNodeType(node.Expression)
 	}
 
 	return ast.InvalidType
-}
-
-func isDynamicNode(n ast.Node) bool {
-	switch node := n.(type) {
-	case *ast.ReferenceNode:
-		return true
-	case *ast.FunctionNode:
-		return true
-	case *ast.UnaryNode:
-		return isDynamicNode(node.Node)
-	case *ast.BinaryNode:
-		return isDynamicNode(node.Left) || isDynamicNode(node.Right)
-	default:
-		return false
-	}
 }

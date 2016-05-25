@@ -40,3 +40,6 @@ func (n *EvalStringNode) EvalTime(scope *Scope, executionState ExecutionState) (
 func (n *EvalStringNode) EvalDuration(scope *Scope, executionState ExecutionState) (time.Duration, error) {
 	return 0, ErrTypeGuardFailed{RequestedType: ast.TDuration, ActualType: ast.TString}
 }
+func (n *EvalStringNode) IsDynamic() bool {
+	return false
+}
