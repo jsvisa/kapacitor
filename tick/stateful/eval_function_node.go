@@ -185,8 +185,10 @@ func eval(n NodeEvaluator, scope *Scope, executionState ExecutionState) (interfa
 		return n.EvalRegex(scope, executionState)
 	case ast.TTime:
 		return n.EvalTime(scope, executionState)
+	case ast.TDuration:
+		return n.EvalDuration(scope, executionState)
 	default:
-		return nil, fmt.Errorf("expression returned unexpected type %s", retType)
+		return nil, fmt.Errorf("function arg expression returned unexpected type %s", retType)
 	}
 
 }

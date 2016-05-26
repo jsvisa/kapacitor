@@ -6,6 +6,8 @@ import (
 	"math"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/influxql"
 )
 
 var ErrNotFloat = errors.New("value is not a float")
@@ -340,6 +342,8 @@ func (*str) Call(args ...interface{}) (v interface{}, err error) {
 		v = strconv.FormatFloat(a, 'f', -1, 64)
 	case bool:
 		v = strconv.FormatBool(a)
+	case time.Duration:
+		v = influxql.FormatDuration(a)
 	case string:
 		v = a
 	default:

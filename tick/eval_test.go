@@ -609,6 +609,9 @@ var x = 2m
 
 func TestEvaluate_Vars_TypeConversion(t *testing.T) {
 	script := `
+var d = 5m
+var messageDuration = '{{ .ID }} has crossed threshold: ' + string(d)
+
 var x = 5
 var messageInt = '{{ .ID }} has crossed threshold: ' + string(x)
 
@@ -627,12 +630,14 @@ var messageBool = '{{ .ID }} is: ' + string(z)
 	}
 
 	exp := map[string]interface{}{
-		"x":            int64(5),
-		"messageInt":   "{{ .ID }} has crossed threshold: 5",
-		"y":            1.0 / 3.0,
-		"messageFloat": "{{ .ID }} has crossed threshold: 0.3333333333333333",
-		"z":            false,
-		"messageBool":  "{{ .ID }} is: false",
+		"d":               5 * time.Minute,
+		"messageDuration": "{{ .ID }} has crossed threshold: 5m",
+		"x":               int64(5),
+		"messageInt":      "{{ .ID }} has crossed threshold: 5",
+		"y":               1.0 / 3.0,
+		"messageFloat":    "{{ .ID }} has crossed threshold: 0.3333333333333333",
+		"z":               false,
+		"messageBool":     "{{ .ID }} is: false",
 	}
 
 	for name, value := range exp {
