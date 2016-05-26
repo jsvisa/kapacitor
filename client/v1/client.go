@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/pkg/errors"
 )
 
 const DefaultUserAgent = "KapacitorClient"
@@ -397,31 +397,42 @@ func (vs *Vars) UnmarshalJSON(b []byte) error {
 	*vs = make(Vars)
 	for name, v := range data {
 		if v.Value != nil {
-			var err error
 			switch v.Type {
 			case VarDuration:
-				n, ok := v.Value.(json.Number)
-				if !ok {
-					return fmt.Errorf("invalid var %v: expected int value", v)
+				switch value := v.Value.(type) {
+				case json.Number:
+					i, err := value.Int64()
+					if err != nil {
+						return errors.Wrapf(err, "invalid var %v", v)
+					}
+					v.Value = time.Duration(i)
+				case string:
+					d, err := influxql.ParseDuration(value)
+					if err != nil {
+						return errors.Wrapf(err, "invalid duration string for var %s", v)
+					}
+					v.Value = d
+				default:
+					return fmt.Errorf("invalid var %v: expected int or string value", v)
 				}
-				var i int64
-				i, err = n.Int64()
-				v.Value = time.Duration(i)
 			case VarInt:
 				n, ok := v.Value.(json.Number)
 				if !ok {
 					return fmt.Errorf("invalid var %v: expected int value", v)
 				}
 				v.Value, err = n.Int64()
+				if err != nil {
+					return errors.Wrapf(err, "invalid var %v", v)
+				}
 			case VarFloat:
 				n, ok := v.Value.(json.Number)
 				if !ok {
 					return fmt.Errorf("invalid var %v: expected float value", v)
 				}
 				v.Value, err = n.Float64()
-			}
-			if err != nil {
-				return fmt.Errorf("invalid var %v: %s", v, err)
+				if err != nil {
+					return errors.Wrapf(err, "invalid var %v", v)
+				}
 			}
 		}
 		(*vs)[name] = v

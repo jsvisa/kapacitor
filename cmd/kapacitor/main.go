@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -476,7 +477,8 @@ var (
 	defineFlags = flag.NewFlagSet("define", flag.ExitOnError)
 	dtick       = defineFlags.String("tick", "", "Path to the TICKscript")
 	dtype       = defineFlags.String("type", "", "The task type (stream|batch)")
-	dtemplate   = defineFlags.String("template", "", "Optional template ID")
+	dtemplate   = defineFlags.String("template-id", "", "Optional template ID")
+	dvars       = defineFlags.String("vars", "", "Optional path to a JSON vars file")
 	dnoReload   = defineFlags.Bool("no-reload", false, "Do not reload the task even if it is enabled")
 	ddbrp       = make(dbrps, 0)
 )
@@ -611,6 +613,19 @@ func doDefine(args []string) error {
 		ttype = client.BatchTask
 	}
 
+	vars := make(client.Vars)
+	if *dvars != "" {
+		f, err := os.Open(*dvars)
+		if err != nil {
+			return errors.Wrapf(err, "faild to open file %s", *dvars)
+		}
+		defer f.Close()
+		dec := json.NewDecoder(f)
+		if err := dec.Decode(&vars); err != nil {
+			return errors.Wrapf(err, "invalid JSON in file %s", *dvars)
+		}
+	}
+
 	l := cli.TaskLink(id)
 	task, _ := cli.Task(l, nil)
 	var err error
@@ -621,6 +636,7 @@ func doDefine(args []string) error {
 			Type:       ttype,
 			DBRPs:      ddbrp,
 			TICKscript: script,
+			Vars:       vars,
 			Status:     client.Disabled,
 		})
 	} else {
@@ -631,6 +647,7 @@ func doDefine(args []string) error {
 				Type:       ttype,
 				DBRPs:      ddbrp,
 				TICKscript: script,
+				Vars:       vars,
 			},
 		)
 	}
@@ -1168,22 +1185,38 @@ func doShow(args []string) error {
 		os.Exit(2)
 	}
 
-	ti, err := cli.Task(cli.TaskLink(args[0]), nil)
+	t, err := cli.Task(cli.TaskLink(args[0]), nil)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("ID:", ti.ID)
-	fmt.Println("Error:", ti.Error)
-	fmt.Println("Type:", ti.Type)
-	fmt.Println("Status:", ti.Status)
-	fmt.Println("Executing:", ti.Executing)
-	fmt.Println("Created:", ti.Created.Format(time.RFC822))
-	fmt.Println("Modified:", ti.Modified.Format(time.RFC822))
-	fmt.Println("LastEnabled:", ti.LastEnabled.Format(time.RFC822))
-	fmt.Println("Databases Retention Policies:", ti.DBRPs)
-	fmt.Printf("TICKscript:\n%s\n\n", ti.TICKscript)
-	fmt.Printf("DOT:\n%s\n", ti.Dot)
+	fmt.Println("ID:", t.ID)
+	fmt.Println("Error:", t.Error)
+	fmt.Println("Template:", t.TemplateID)
+	fmt.Println("Type:", t.Type)
+	fmt.Println("Status:", t.Status)
+	fmt.Println("Executng:", t.Executing)
+	fmt.Println("Created:", t.Created.Format(time.RFC822))
+	fmt.Println("Modified:", t.Modified.Format(time.RFC822))
+	fmt.Println("LastEnabled:", t.LastEnabled.Format(time.RFC822))
+	fmt.Println("Databases Retenton Policies:", t.DBRPs)
+	fmt.Printf("TICKscript:\n%s\n", t.TICKscript)
+	if len(t.Vars) > 0 {
+		fmt.Println("Vars:")
+		varOutFmt := "%-30s%-10v%-40v\n"
+		fmt.Printf(varOutFmt, "Name", "Type", "Value")
+		vars := make([]string, 0, len(t.Vars))
+		for name := range t.Vars {
+			vars = append(vars, name)
+		}
+		sort.Strings(vars)
+		for _, name := range vars {
+			v := t.Vars[name]
+			fmt.Printf(varOutFmt, name, v.Type, v.Value)
+		}
+	}
+	fmt.Printf("DOT:\n%s\n", t.Dot)
+
 	return nil
 }
 
@@ -1214,9 +1247,8 @@ func doShowTemplate(args []string) error {
 	fmt.Println("Type:", t.Type)
 	fmt.Println("Created:", t.Created.Format(time.RFC822))
 	fmt.Println("Modified:", t.Modified.Format(time.RFC822))
-	fmt.Printf("TICKscript:\n%s\n\n", t.TICKscript)
-	fmt.Printf("DOT:\n%s\n", t.Dot)
-	fmt.Printf("Vars:\n")
+	fmt.Printf("TICKscript:\n%s\n", t.TICKscript)
+	fmt.Println("Vars:")
 	varOutFmt := "%-30s%-10v%-40v%-40s\n"
 	fmt.Printf(varOutFmt, "Name", "Type", "Default Value", "Description")
 	vars := make([]string, 0, len(t.Vars))
@@ -1232,6 +1264,7 @@ func doShowTemplate(args []string) error {
 		}
 		fmt.Printf(varOutFmt, name, v.Type, value, v.Description)
 	}
+	fmt.Printf("DOT:\n%s\n", t.Dot)
 	return nil
 }
 

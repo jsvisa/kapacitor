@@ -444,10 +444,12 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 		Type:       raw.Type,
 	}
 	if raw.TemplateID != "" {
-		template, err = ts.templates.Get(raw.TemplateID)
-		if err != nil {
-			httpd.HttpError(w, fmt.Sprintf("template not found: %s", err.Error()), true, http.StatusNotFound)
-			return
+		if tmpl, err := ts.templates.Get(raw.TemplateID); err != nil {
+			// Only log the error since it may have existed
+			// and this task is now orphaned
+			ts.logger.Println("E! template not found:", err)
+		} else {
+			template = tmpl
 		}
 	}
 
@@ -546,6 +548,7 @@ func (ts *Service) handleTask(w http.ResponseWriter, r *http.Request) {
 	info := client.Task{
 		Link:           ts.taskLink(id),
 		ID:             id,
+		TemplateID:     raw.TemplateID,
 		Type:           typ,
 		DBRPs:          dbrps,
 		TICKscript:     raw.TICKscript,
@@ -887,6 +890,7 @@ func (ts *Service) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Link:           ts.taskLink(newTask.ID),
 		ID:             newTask.ID,
 		Type:           task.Type,
+		TemplateID:     task.TemplateID,
 		DBRPs:          task.DBRPs,
 		TICKscript:     task.TICKscript,
 		Vars:           task.Vars,
@@ -928,9 +932,11 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if task.TemplateID != existing.TemplateID {
-			if err := ts.templates.DisassociateTask(existing.TemplateID, existing.ID); err != nil {
-				httpd.HttpError(w, fmt.Sprintf("failed to disassociate task with template: %s", err), true, http.StatusBadRequest)
-				return
+			if existing.TemplateID != "" {
+				if err := ts.templates.DisassociateTask(existing.TemplateID, existing.ID); err != nil {
+					httpd.HttpError(w, fmt.Sprintf("failed to disassociate task with template: %s", err), true, http.StatusBadRequest)
+					return
+				}
 			}
 			if err := ts.templates.AssociateTask(task.TemplateID, existing.ID); err != nil {
 				httpd.HttpError(w, fmt.Sprintf("failed to associate task with template: %s", err), true, http.StatusBadRequest)
@@ -1105,12 +1111,20 @@ func (ts *Service) convertToClientVarsFromTick(kvars map[string]tick.Var) (clien
 			typ = client.VarDuration
 		case ast.TLambda:
 			typ = client.VarLambda
-			v = v.(*ast.LambdaNode).ExpressionString()
+			if l, ok := v.(*ast.LambdaNode); ok {
+				v = l.ExpressionString()
+			} else if v != nil {
+				return nil, fmt.Errorf("invalid lambda value type, expected: *ast.LambdaNode, got %T", v)
+			}
 		case ast.TString:
 			typ = client.VarString
 		case ast.TRegex:
 			typ = client.VarRegex
-			v = v.(*regexp.Regexp).String()
+			if r, ok := v.(*regexp.Regexp); ok {
+				v = r.String()
+			} else if v != nil {
+				return nil, fmt.Errorf("invalid regex value type, expected: *regexp.Regexp, got %T", v)
+			}
 		default:
 			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
 		}
