@@ -335,7 +335,7 @@ func (*str) Call(args ...interface{}) (v interface{}, err error) {
 	}
 	switch a := args[0].(type) {
 	case int64:
-		v = strconv.FormatInt(a, 64)
+		v = strconv.FormatInt(a, 10)
 	case float64:
 		v = strconv.FormatFloat(a, 'f', -1, 64)
 	case bool:

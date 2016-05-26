@@ -607,6 +607,49 @@ var x = 2m
 	}
 }
 
+func TestEvaluate_Vars_TypeConversion(t *testing.T) {
+	script := `
+var x = 5
+var messageInt = '{{ .ID }} has crossed threshold: ' + string(x)
+
+var y = 1.0 / 3.0
+var messageFloat = '{{ .ID }} has crossed threshold: ' + string(y)
+
+var z = FALSE
+var messageBool = '{{ .ID }} is: ' + string(z)
+
+`
+
+	scope := stateful.NewScope()
+	vars, err := tick.Evaluate(script, scope, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exp := map[string]interface{}{
+		"x":            int64(5),
+		"messageInt":   "{{ .ID }} has crossed threshold: 5",
+		"y":            1.0 / 3.0,
+		"messageFloat": "{{ .ID }} has crossed threshold: 0.3333333333333333",
+		"z":            false,
+		"messageBool":  "{{ .ID }} is: false",
+	}
+
+	for name, value := range exp {
+		if got, err := scope.Get(name); err != nil {
+			t.Errorf("unexpected error for %s: %s", name, err)
+		} else if !reflect.DeepEqual(got, value) {
+			t.Errorf("unexpected %s value: got %v exp %v", name, got, value)
+		}
+		if got, exp := vars[name].Value, value; !reflect.DeepEqual(got, exp) {
+			t.Errorf("unexpected %s vars value: got %v exp %v", name, got, value)
+		}
+		if got, exp := vars[name].Type, ast.TypeOf(value); got != exp {
+			t.Errorf("unexpected %s vars type: got %v exp %v", name, got, exp)
+		}
+	}
+}
+
 // Test that using the wrong chain operator fails
 func TestStrictEvaluate(t *testing.T) {
 	script := `
