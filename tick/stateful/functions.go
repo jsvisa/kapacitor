@@ -30,6 +30,7 @@ func init() {
 	statelessFuncs["int"] = &integer{}
 	statelessFuncs["float"] = &float{}
 	statelessFuncs["string"] = &str{}
+	statelessFuncs["duration"] = &duration{}
 
 	// Math functions
 	statelessFuncs["abs"] = newMath1("abs", math.Abs)
@@ -273,7 +274,7 @@ func (*integer) Reset() {
 // Converts the value to a integer
 func (*integer) Call(args ...interface{}) (v interface{}, err error) {
 	if len(args) != 1 {
-		return 0, errors.New("integer expects exactly one argument")
+		return 0, errors.New("int expects exactly one argument")
 	}
 	switch a := args[0].(type) {
 	case int64:
@@ -288,6 +289,8 @@ func (*integer) Call(args ...interface{}) (v interface{}, err error) {
 		} else {
 			v = int64(0)
 		}
+	case time.Duration:
+		v = int64(a)
 	default:
 		err = fmt.Errorf("cannot convert %T to integer", a)
 	}
@@ -333,7 +336,7 @@ func (*str) Reset() {
 // Converts the value to a str
 func (*str) Call(args ...interface{}) (v interface{}, err error) {
 	if len(args) != 1 {
-		return 0, errors.New("str expects exactly one argument")
+		return 0, errors.New("string expects exactly one argument")
 	}
 	switch a := args[0].(type) {
 	case int64:
@@ -348,6 +351,49 @@ func (*str) Call(args ...interface{}) (v interface{}, err error) {
 		v = a
 	default:
 		err = fmt.Errorf("cannot convert %T to string", a)
+	}
+	return
+}
+
+type duration struct {
+}
+
+func (*duration) Reset() {
+}
+
+// Converts the value to a duration in the given units
+func (*duration) Call(args ...interface{}) (v interface{}, err error) {
+	if len(args) != 1 && len(args) != 2 {
+		return time.Duration(0), errors.New("duration expects one or two arguments duration(value, unit) where unit is optional depending on the type of value.")
+	}
+
+	getUnit := func() (time.Duration, error) {
+		if len(args) != 2 {
+			return 0, errors.New("duration expects unit argument for int and float values")
+		}
+		unit, ok := args[1].(time.Duration)
+		if !ok {
+			return 0, fmt.Errorf("invalid duration unit type: %T", args[1])
+		}
+		return unit, nil
+	}
+	var unit time.Duration
+	switch a := args[0].(type) {
+	case time.Duration:
+		v = a
+	case int64:
+		unit, err = getUnit()
+		v = time.Duration(a) * unit
+	case float64:
+		unit, err = getUnit()
+		v = time.Duration(a * float64(unit))
+	case string:
+		v, err = influxql.ParseDuration(a)
+		if err != nil {
+			err = fmt.Errorf("invalid duration string %q", a)
+		}
+	default:
+		err = fmt.Errorf("cannot convert %T to duration", a)
 	}
 	return
 }

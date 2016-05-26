@@ -121,20 +121,20 @@ func TestExpression_EvalBool_BinaryNodeWithDurationNode(t *testing.T) {
 		keyStruct{int64(5), int64(5), ast.TokenOr}:          errors.New("invalid logical operator OR for type int"),
 
 		// Left is time.Duration(5), Right is int64(5)
-		keyStruct{time.Duration(5), int64(5), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got duration == int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(5), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got duration != int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(5), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got duration > int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(5), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got duration >= int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(5), ast.TokenLess}:         errors.New("mismatched type to binary operator. got duration < int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(5), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got duration <= int. see bool(), int(), float(), string()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got duration == int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got duration != int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got duration > int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got duration >= int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenLess}:         errors.New("mismatched type to binary operator. got duration < int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(5), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got duration <= int. see bool(), int(), float(), string(), duration()"),
 
 		// (Redundant case) Left is time.Duration(10), Right is int64(5)
-		keyStruct{time.Duration(10), int64(5), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got duration == int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(5), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got duration != int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(5), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got duration > int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(5), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got duration >= int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(5), ast.TokenLess}:         errors.New("mismatched type to binary operator. got duration < int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(5), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got duration <= int. see bool(), int(), float(), string()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got duration == int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got duration != int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got duration > int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got duration >= int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenLess}:         errors.New("mismatched type to binary operator. got duration < int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(5), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got duration <= int. see bool(), int(), float(), string(), duration()"),
 	})
 
 }
@@ -234,56 +234,56 @@ func TestExpression_EvalDuration(t *testing.T) {
 		keyStruct{time.Duration(10), float64(1.5), ast.TokenMod}:      errors.New("invalid math operator % for type duration"),
 
 		// Muiltiply Divide durations
-		keyStruct{time.Duration(5), time.Duration(5), ast.TokenMult}:   errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), time.Duration(5), ast.TokenDiv}:    errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), time.Duration(10), ast.TokenMult}:  errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), time.Duration(10), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), time.Duration(10), ast.TokenMult}: errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), time.Duration(10), ast.TokenDiv}:  errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), time.Duration(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), time.Duration(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string()"),
+		keyStruct{time.Duration(5), time.Duration(5), ast.TokenMult}:   errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), time.Duration(5), ast.TokenDiv}:    errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), time.Duration(10), ast.TokenMult}:  errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), time.Duration(10), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), time.Duration(10), ast.TokenMult}: errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), time.Duration(10), ast.TokenDiv}:  errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), time.Duration(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got duration * duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), time.Duration(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got duration / duration. see bool(), int(), float(), string(), duration()"),
 
 		// Add/Subtract duration with int/float
-		keyStruct{time.Duration(5), int64(2), ast.TokenPlus}:       errors.New("mismatched type to binary operator. got duration + int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), int64(2), ast.TokenMinus}:      errors.New("mismatched type to binary operator. got duration - int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), float64(1.5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got duration + float. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(5), float64(1.5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got duration - float. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(5), ast.TokenPlus}:       errors.New("mismatched type to binary operator. got int + duration. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(5), ast.TokenMinus}:      errors.New("mismatched type to binary operator. got int - duration. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(10), ast.TokenPlus}:      errors.New("mismatched type to binary operator. got int + duration. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(10), ast.TokenMinus}:     errors.New("mismatched type to binary operator. got int - duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got float + duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got float - duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(10), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(10), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - duration. see bool(), int(), float(), string()"),
+		keyStruct{time.Duration(5), int64(2), ast.TokenPlus}:       errors.New("mismatched type to binary operator. got duration + int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), int64(2), ast.TokenMinus}:      errors.New("mismatched type to binary operator. got duration - int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), float64(1.5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got duration + float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(5), float64(1.5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got duration - float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(5), ast.TokenPlus}:       errors.New("mismatched type to binary operator. got int + duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(5), ast.TokenMinus}:      errors.New("mismatched type to binary operator. got int - duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(10), ast.TokenPlus}:      errors.New("mismatched type to binary operator. got int + duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(10), ast.TokenMinus}:     errors.New("mismatched type to binary operator. got int - duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got float + duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got float - duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(10), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(10), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - duration. see bool(), int(), float(), string(), duration()"),
 
 		// int / duration
-		keyStruct{int64(2), time.Duration(5), ast.TokenDiv}:      errors.New("mismatched type to binary operator. got int / duration. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(10), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got int / duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(5), ast.TokenDiv}:  errors.New("mismatched type to binary operator. got float / duration. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), time.Duration(10), ast.TokenDiv}: errors.New("mismatched type to binary operator. got float / duration. see bool(), int(), float(), string()"),
+		keyStruct{int64(2), time.Duration(5), ast.TokenDiv}:      errors.New("mismatched type to binary operator. got int / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(10), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got int / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(5), ast.TokenDiv}:  errors.New("mismatched type to binary operator. got float / duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), time.Duration(10), ast.TokenDiv}: errors.New("mismatched type to binary operator. got float / duration. see bool(), int(), float(), string(), duration()"),
 
 		// int % duration
-		keyStruct{int64(2), time.Duration(5), ast.TokenMod}:      errors.New("mismatched type to binary operator. got int % duration. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), time.Duration(10), ast.TokenMod}:     errors.New("mismatched type to binary operator. got int % duration. see bool(), int(), float(), string()"),
+		keyStruct{int64(2), time.Duration(5), ast.TokenMod}:      errors.New("mismatched type to binary operator. got int % duration. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), time.Duration(10), ast.TokenMod}:     errors.New("mismatched type to binary operator. got int % duration. see bool(), int(), float(), string(), duration()"),
 		keyStruct{float64(1.5), time.Duration(5), ast.TokenMod}:  errors.New("invalid math operator % for type float"),
 		keyStruct{float64(1.5), time.Duration(10), ast.TokenMod}: errors.New("invalid math operator % for type float"),
 
-		keyStruct{time.Duration(10), int64(2), ast.TokenPlus}:      errors.New("mismatched type to binary operator. got duration + int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), int64(2), ast.TokenMinus}:     errors.New("mismatched type to binary operator. got duration - int. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), float64(1.5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got duration + float. see bool(), int(), float(), string()"),
-		keyStruct{time.Duration(10), float64(1.5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got duration - float. see bool(), int(), float(), string()"),
+		keyStruct{time.Duration(10), int64(2), ast.TokenPlus}:      errors.New("mismatched type to binary operator. got duration + int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), int64(2), ast.TokenMinus}:     errors.New("mismatched type to binary operator. got duration - int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), float64(1.5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got duration + float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{time.Duration(10), float64(1.5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got duration - float. see bool(), int(), float(), string(), duration()"),
 
 		// unrelated to durations but
-		keyStruct{int64(2), float64(1.5), ast.TokenPlus}:    errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), float64(1.5), ast.TokenMinus}:   errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), float64(1.5), ast.TokenMult}:    errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), float64(1.5), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string()"),
-		keyStruct{int64(2), float64(1.5), ast.TokenMod}:     errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), int64(2), ast.TokenPlus}:    errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), int64(2), ast.TokenMinus}:   errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), int64(2), ast.TokenMult}:    errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string()"),
-		keyStruct{float64(1.5), int64(2), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string()"),
+		keyStruct{int64(2), float64(1.5), ast.TokenPlus}:    errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), float64(1.5), ast.TokenMinus}:   errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), float64(1.5), ast.TokenMult}:    errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), float64(1.5), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(2), float64(1.5), ast.TokenMod}:     errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), int64(2), ast.TokenPlus}:    errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), int64(2), ast.TokenMinus}:   errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), int64(2), ast.TokenMult}:    errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(1.5), int64(2), ast.TokenDiv}:     errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string(), duration()"),
 		keyStruct{float64(1.5), int64(2), ast.TokenMod}:     errors.New("invalid math operator % for type float"),
 		keyStruct{float64(1.5), float64(1.5), ast.TokenMod}: errors.New("invalid math operator % for type float"),
 	})
@@ -418,27 +418,27 @@ func TestExpression_EvalBool_BoolNode(t *testing.T) {
 		keyStruct{false, "NON_BOOL_VALUE", ast.TokenLess}: errors.New("invalid comparison operator < for type boolean"),
 
 		// Left: True, Right: "NON_BOOL_VALUE"
-		keyStruct{true, "NON_BOOL_VALUE", ast.TokenEqual}:    errors.New("mismatched type to binary operator. got boolean == string. see bool(), int(), float(), string()"),
-		keyStruct{true, "NON_BOOL_VALUE", ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got boolean != string. see bool(), int(), float(), string()"),
-		keyStruct{true, "NON_BOOL_VALUE", ast.TokenAnd}:      errors.New("mismatched type to binary operator. got boolean AND string. see bool(), int(), float(), string()"),
-		keyStruct{true, "NON_BOOL_VALUE", ast.TokenOr}:       errors.New("mismatched type to binary operator. got boolean OR string. see bool(), int(), float(), string()"),
+		keyStruct{true, "NON_BOOL_VALUE", ast.TokenEqual}:    errors.New("mismatched type to binary operator. got boolean == string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{true, "NON_BOOL_VALUE", ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got boolean != string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{true, "NON_BOOL_VALUE", ast.TokenAnd}:      errors.New("mismatched type to binary operator. got boolean AND string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{true, "NON_BOOL_VALUE", ast.TokenOr}:       errors.New("mismatched type to binary operator. got boolean OR string. see bool(), int(), float(), string(), duration()"),
 
 		// Left: False, Right: "NON_BOOL_VALUE"
-		keyStruct{false, "NON_BOOL_VALUE", ast.TokenEqual}:    errors.New("mismatched type to binary operator. got boolean == string. see bool(), int(), float(), string()"),
-		keyStruct{false, "NON_BOOL_VALUE", ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got boolean != string. see bool(), int(), float(), string()"),
-		keyStruct{false, "NON_BOOL_VALUE", ast.TokenAnd}:      errors.New("mismatched type to binary operator. got boolean AND string. see bool(), int(), float(), string()"),
-		keyStruct{false, "NON_BOOL_VALUE", ast.TokenOr}:       errors.New("mismatched type to binary operator. got boolean OR string. see bool(), int(), float(), string()"),
+		keyStruct{false, "NON_BOOL_VALUE", ast.TokenEqual}:    errors.New("mismatched type to binary operator. got boolean == string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{false, "NON_BOOL_VALUE", ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got boolean != string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{false, "NON_BOOL_VALUE", ast.TokenAnd}:      errors.New("mismatched type to binary operator. got boolean AND string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{false, "NON_BOOL_VALUE", ast.TokenOr}:       errors.New("mismatched type to binary operator. got boolean OR string. see bool(), int(), float(), string(), duration()"),
 
 		// Left: "NON_BOOL_VALUE", Right: True
-		keyStruct{"NON_BOOL_VALUE", true, ast.TokenEqual}:    errors.New("mismatched type to binary operator. got string == bool. see bool(), int(), float(), string()"),
-		keyStruct{"NON_BOOL_VALUE", true, ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got string != bool. see bool(), int(), float(), string()"),
-		keyStruct{"NON_BOOL_VALUE", true, ast.TokenAnd}:      errors.New("mismatched type to binary operator. got string AND bool. see bool(), int(), float(), string()"),
+		keyStruct{"NON_BOOL_VALUE", true, ast.TokenEqual}:    errors.New("mismatched type to binary operator. got string == bool. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"NON_BOOL_VALUE", true, ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got string != bool. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"NON_BOOL_VALUE", true, ast.TokenAnd}:      errors.New("mismatched type to binary operator. got string AND bool. see bool(), int(), float(), string(), duration()"),
 		keyStruct{"NON_BOOL_VALUE", true, ast.TokenOr}:       errors.New("invalid comparison operator OR for type string"),
 
 		// Left: "NON_BOOL_VALUE", Right: False
-		keyStruct{"NON_BOOL_VALUE", false, ast.TokenEqual}:    errors.New("mismatched type to binary operator. got string == bool. see bool(), int(), float(), string()"),
-		keyStruct{"NON_BOOL_VALUE", false, ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got string != bool. see bool(), int(), float(), string()"),
-		keyStruct{"NON_BOOL_VALUE", false, ast.TokenAnd}:      errors.New("mismatched type to binary operator. got string AND bool. see bool(), int(), float(), string()"),
+		keyStruct{"NON_BOOL_VALUE", false, ast.TokenEqual}:    errors.New("mismatched type to binary operator. got string == bool. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"NON_BOOL_VALUE", false, ast.TokenNotEqual}: errors.New("mismatched type to binary operator. got string != bool. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"NON_BOOL_VALUE", false, ast.TokenAnd}:      errors.New("mismatched type to binary operator. got string AND bool. see bool(), int(), float(), string(), duration()"),
 		keyStruct{"NON_BOOL_VALUE", false, ast.TokenOr}:       errors.New("invalid comparison operator OR for type string"),
 	})
 
@@ -571,28 +571,28 @@ func TestExpression_EvalBool_NumberNode(t *testing.T) {
 		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenOr}:    errors.New("invalid logical operator OR for type int"),
 
 		// Left is float64(5), Right is "NON_INT_VALUE"
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got float == string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got float != string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got float > string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got float >= string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got float < string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got float <= string. see bool(), int(), float(), string()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got float == string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got float != string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got float > string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got float >= string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got float < string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got float <= string. see bool(), int(), float(), string(), duration()"),
 
 		// (Redundant case) Left is float64(10), Right is "NON_INT_VALUE"
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got float == string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got float != string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got float > string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got float >= string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got float < string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got float <= string. see bool(), int(), float(), string()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got float == string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got float != string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got float > string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got float >= string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got float < string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got float <= string. see bool(), int(), float(), string(), duration()"),
 
 		// Left is int64(5), Right is "NON_INT_VALUE"
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got int == string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got int != string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got int > string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got int >= string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got int < string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got int <= string. see bool(), int(), float(), string()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenEqual}:        errors.New("mismatched type to binary operator. got int == string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got int != string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenGreater}:      errors.New("mismatched type to binary operator. got int > string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got int >= string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenLess}:         errors.New("mismatched type to binary operator. got int < string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got int <= string. see bool(), int(), float(), string(), duration()"),
 	})
 }
 
@@ -661,20 +661,20 @@ func TestExpression_EvalBool_StringNode(t *testing.T) {
 		keyStruct{"b", int64(123), ast.TokenOr}: errors.New("invalid logical operator OR for type string"),
 
 		// Left is "a", Right is int64(123)
-		keyStruct{"a", int64(123), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got string == int. see bool(), int(), float(), string()"),
-		keyStruct{"a", int64(123), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got string != int. see bool(), int(), float(), string()"),
-		keyStruct{"a", int64(123), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got string > int. see bool(), int(), float(), string()"),
-		keyStruct{"a", int64(123), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got string >= int. see bool(), int(), float(), string()"),
-		keyStruct{"a", int64(123), ast.TokenLess}:         errors.New("mismatched type to binary operator. got string < int. see bool(), int(), float(), string()"),
-		keyStruct{"a", int64(123), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got string <= int. see bool(), int(), float(), string()"),
+		keyStruct{"a", int64(123), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got string == int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"a", int64(123), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got string != int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"a", int64(123), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got string > int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"a", int64(123), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got string >= int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"a", int64(123), ast.TokenLess}:         errors.New("mismatched type to binary operator. got string < int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"a", int64(123), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got string <= int. see bool(), int(), float(), string(), duration()"),
 
 		// Left is "b", Right is int64(123)
-		keyStruct{"b", int64(123), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got string == int. see bool(), int(), float(), string()"),
-		keyStruct{"b", int64(123), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got string != int. see bool(), int(), float(), string()"),
-		keyStruct{"b", int64(123), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got string > int. see bool(), int(), float(), string()"),
-		keyStruct{"b", int64(123), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got string >= int. see bool(), int(), float(), string()"),
-		keyStruct{"b", int64(123), ast.TokenLess}:         errors.New("mismatched type to binary operator. got string < int. see bool(), int(), float(), string()"),
-		keyStruct{"b", int64(123), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got string <= int. see bool(), int(), float(), string()"),
+		keyStruct{"b", int64(123), ast.TokenEqual}:        errors.New("mismatched type to binary operator. got string == int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"b", int64(123), ast.TokenNotEqual}:     errors.New("mismatched type to binary operator. got string != int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"b", int64(123), ast.TokenGreater}:      errors.New("mismatched type to binary operator. got string > int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"b", int64(123), ast.TokenGreaterEqual}: errors.New("mismatched type to binary operator. got string >= int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"b", int64(123), ast.TokenLess}:         errors.New("mismatched type to binary operator. got string < int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{"b", int64(123), ast.TokenLessEqual}:    errors.New("mismatched type to binary operator. got string <= int. see bool(), int(), float(), string(), duration()"),
 	})
 }
 
@@ -714,11 +714,11 @@ func TestExpression_EvalBool_RegexNode(t *testing.T) {
 	},
 		map[keyStruct]error{
 			// Errors for invalid operators
-			keyStruct{"abc", pattern, ast.TokenEqual}:           errors.New("mismatched type to binary operator. got string == regex. see bool(), int(), float(), string()"),
-			keyStruct{"cba", pattern, ast.TokenEqual}:           errors.New("mismatched type to binary operator. got string == regex. see bool(), int(), float(), string()"),
+			keyStruct{"abc", pattern, ast.TokenEqual}:           errors.New("mismatched type to binary operator. got string == regex. see bool(), int(), float(), string(), duration()"),
+			keyStruct{"cba", pattern, ast.TokenEqual}:           errors.New("mismatched type to binary operator. got string == regex. see bool(), int(), float(), string(), duration()"),
 			keyStruct{pattern, "cba", ast.TokenEqual}:           errors.New("invalid comparison operator == for type regex"),
-			keyStruct{pattern, pattern, ast.TokenRegexEqual}:    errors.New("mismatched type to binary operator. got regex =~ regex. see bool(), int(), float(), string()"),
-			keyStruct{pattern, pattern, ast.TokenRegexNotEqual}: errors.New("mismatched type to binary operator. got regex !~ regex. see bool(), int(), float(), string()"),
+			keyStruct{pattern, pattern, ast.TokenRegexEqual}:    errors.New("mismatched type to binary operator. got regex =~ regex. see bool(), int(), float(), string(), duration()"),
+			keyStruct{pattern, pattern, ast.TokenRegexNotEqual}: errors.New("mismatched type to binary operator. got regex !~ regex. see bool(), int(), float(), string(), duration()"),
 			keyStruct{pattern, pattern, ast.TokenEqual}:         errors.New("invalid comparison operator == for type regex"),
 		})
 }
@@ -1403,44 +1403,44 @@ func TestExpression_EvalNum_NumberNode(t *testing.T) {
 		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenMod}:  errors.New("invalid math operator % for type float"),
 
 		// Left is int, right is float
-		keyStruct{int64(5), float64(5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(5), ast.TokenMult}:   errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(5), ast.TokenDiv}:    errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(5), ast.TokenMod}:    errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(10), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(10), ast.TokenMinus}: errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(10), ast.TokenMult}:  errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(10), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), float64(10), ast.TokenMod}:   errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string()"),
+		keyStruct{int64(5), float64(5), ast.TokenPlus}:   errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(5), ast.TokenMinus}:  errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(5), ast.TokenMult}:   errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(5), ast.TokenDiv}:    errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(5), ast.TokenMod}:    errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(10), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got int + float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(10), ast.TokenMinus}: errors.New("mismatched type to binary operator. got int - float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(10), ast.TokenMult}:  errors.New("mismatched type to binary operator. got int * float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(10), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got int / float. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), float64(10), ast.TokenMod}:   errors.New("mismatched type to binary operator. got int % float. see bool(), int(), float(), string(), duration()"),
 
 		// Left is float, right is int
-		keyStruct{float64(5), int64(5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), int64(5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), int64(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), int64(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string()"),
+		keyStruct{float64(5), int64(5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), int64(5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), int64(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), int64(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string(), duration()"),
 
-		keyStruct{float64(10), int64(5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), int64(5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), int64(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), int64(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string()"),
+		keyStruct{float64(10), int64(5), ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), int64(5), ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), int64(5), ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * int. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), int64(5), ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / int. see bool(), int(), float(), string(), duration()"),
 
 		// Left is int, Right is "NON_INT_VALUE"
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenPlus}:  errors.New("mismatched type to binary operator. got int + string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMinus}: errors.New("mismatched type to binary operator. got int - string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMult}:  errors.New("mismatched type to binary operator. got int * string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenDiv}:   errors.New("mismatched type to binary operator. got int / string. see bool(), int(), float(), string()"),
-		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMod}:   errors.New("mismatched type to binary operator. got int % string. see bool(), int(), float(), string()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenPlus}:  errors.New("mismatched type to binary operator. got int + string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMinus}: errors.New("mismatched type to binary operator. got int - string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMult}:  errors.New("mismatched type to binary operator. got int * string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenDiv}:   errors.New("mismatched type to binary operator. got int / string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{int64(5), "NON_INT_VALUE", ast.TokenMod}:   errors.New("mismatched type to binary operator. got int % string. see bool(), int(), float(), string(), duration()"),
 
 		// Left is float, Right is "NON_INT_VALUE"
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenPlus}:   errors.New("mismatched type to binary operator. got float + string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenMinus}:  errors.New("mismatched type to binary operator. got float - string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenMult}:   errors.New("mismatched type to binary operator. got float * string. see bool(), int(), float(), string()"),
-		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenDiv}:    errors.New("mismatched type to binary operator. got float / string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * string. see bool(), int(), float(), string()"),
-		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / string. see bool(), int(), float(), string()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenPlus}:   errors.New("mismatched type to binary operator. got float + string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenMinus}:  errors.New("mismatched type to binary operator. got float - string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenMult}:   errors.New("mismatched type to binary operator. got float * string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(5), "NON_INT_VALUE", ast.TokenDiv}:    errors.New("mismatched type to binary operator. got float / string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenPlus}:  errors.New("mismatched type to binary operator. got float + string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenMinus}: errors.New("mismatched type to binary operator. got float - string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenMult}:  errors.New("mismatched type to binary operator. got float * string. see bool(), int(), float(), string(), duration()"),
+		keyStruct{float64(10), "NON_INT_VALUE", ast.TokenDiv}:   errors.New("mismatched type to binary operator. got float / string. see bool(), int(), float(), string(), duration()"),
 	})
 }
 

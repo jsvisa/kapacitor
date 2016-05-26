@@ -329,7 +329,7 @@ func (e *EvalBinaryNode) determineError(scope *Scope, executionState ExecutionSt
 		return fmt.Errorf("invalid %s operator %v for type %s", operatorKind(e.operator), e.operator, e.rightType)
 	}
 
-	return fmt.Errorf("mismatched type to binary operator. got %s %v %s. see bool(), int(), float(), string()", e.leftType, e.operator, e.rightType)
+	return fmt.Errorf("mismatched type to binary operator. got %s %v %s. see bool(), int(), float(), string(), duration()", e.leftType, e.operator, e.rightType)
 }
 
 func (e *EvalBinaryNode) lookupEvaluationFn() evaluationFn {
