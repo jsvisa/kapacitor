@@ -1212,12 +1212,41 @@ func doShow(args []string) error {
 		sort.Strings(vars)
 		for _, name := range vars {
 			v := t.Vars[name]
-			fmt.Printf(varOutFmt, name, v.Type, v.Value)
+			value := v.Value
+			if list, ok := v.Value.([]client.Var); ok {
+				var err error
+				value, err = varListToStr(list)
+				if err != nil {
+					return errors.Wrapf(err, "invalid var %s", name)
+				}
+			}
+			fmt.Printf(varOutFmt, name, v.Type, value)
 		}
 	}
 	fmt.Printf("DOT:\n%s\n", t.Dot)
 
 	return nil
+}
+
+func varListToStr(list []client.Var) (string, error) {
+	values := make([]string, len(list))
+	for i := range list {
+		var str string
+		switch list[i].Type {
+		case client.VarString:
+			s, ok := list[i].Value.(string)
+			if !ok {
+				return "", errors.New("non string value in string var")
+			}
+			str = s
+		case client.VarStar:
+			str = "*"
+		default:
+			return "", fmt.Errorf("lists can only contain strings or a star, got %s", list[i].Type)
+		}
+		values[i] = str
+	}
+	return "[" + strings.Join(values, ", ") + "]", nil
 }
 
 // Show Template
@@ -1261,6 +1290,13 @@ func doShowTemplate(args []string) error {
 		value := v.Value
 		if v.Value == nil {
 			value = "<required>"
+		}
+		if list, ok := v.Value.([]client.Var); ok {
+			var err error
+			value, err = varListToStr(list)
+			if err != nil {
+				return errors.Wrapf(err, "invalid var %s", name)
+			}
 		}
 		fmt.Printf(varOutFmt, name, v.Type, value, v.Description)
 	}

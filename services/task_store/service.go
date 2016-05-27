@@ -925,8 +925,13 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if task.TemplateID != "" {
-		template, err := ts.templates.Get(task.TemplateID)
+	if task.TemplateID != "" || existing.TemplateID != "" {
+		templateID := task.TemplateID
+		if templateID == "" {
+			templateID = existing.TemplateID
+			task.TemplateID = templateID
+		}
+		template, err := ts.templates.Get(templateID)
 		if err != nil {
 			httpd.HttpError(w, fmt.Sprintf("unknown template %s: err: %s", task.TemplateID, err), true, http.StatusBadRequest)
 			return
