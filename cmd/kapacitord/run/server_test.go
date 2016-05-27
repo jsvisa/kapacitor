@@ -923,15 +923,26 @@ var field string
 var tagMatch regex
 var match lambda
 var eval lambda
+var groups list
+var secondGroup list
 stream
     |from()
         .measurement('test')
         .where(lambda: match AND "tag" =~ tagMatch AND bool AND "value" >= value_threshold)
+        .groupBy(groups)
+        |log().prefix('FROM')
     |window()
         .period(window)
         .every(window)
+        |log().prefix('WINDOW')
     |count(field)
+        |log().prefix('COUNT')
+    |groupBy(secondGroup)
+    |sum('count')
+        .as('count')
+        |log().prefix('SUM')
     |where(lambda: "count" >= count_threshold)
+        |log().prefix('WHERE')
     |eval(eval)
         .as('count')
     |httpOut('count')
@@ -955,7 +966,7 @@ stream
 				Type:  client.VarBool,
 			},
 			"count_threshold": {
-				Value: int64(10),
+				Value: int64(1),
 				Type:  client.VarInt,
 			},
 			"value_threshold": {
@@ -982,6 +993,14 @@ stream
 				Value: `"count" * 2`,
 				Type:  client.VarLambda,
 			},
+			"groups": {
+				Value: []client.Var{client.Var{Type: client.VarStar}},
+				Type:  client.VarList,
+			},
+			"secondGroup": {
+				Value: []client.Var{client.Var{Value: "tag", Type: client.VarString}},
+				Type:  client.VarList,
+			},
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -995,29 +1014,34 @@ stream
 		t.Error(err)
 	}
 
-	points := `test,tag=abc value=1 0000000000
-test,tag=abc value=1 0000000001
-test,tag=bbc value=1 0000000001
-test,tag=abc value=1 0000000002
-test,tag=abc value=0 0000000002
-test,tag=abc value=1 0000000003
-test,tag=abc value=1 0000000003
-test,tag=abc value=1 0000000004
-test,tag=abc value=1 0000000005
-test,tag=abc value=1 0000000005
-test,tag=bbc value=1 0000000005
-test,tag=abc value=1 0000000006
-test,tag=abc value=1 0000000007
-test,tag=abc value=0 0000000008
-test,tag=abc value=1 0000000009
-test,tag=abc value=1 0000000010
-test,tag=abc value=1 0000000011
+	points := `test,tag=abc,other=a value=1 0000000000
+test,tag=abc,other=b value=1 0000000000
+test,tag=abc,other=a value=1 0000000001
+test,tag=bbc,other=b value=1 0000000001
+test,tag=abc,other=a value=1 0000000002
+test,tag=abc,other=a value=0 0000000002
+test,tag=abc,other=b value=1 0000000003
+test,tag=abc,other=a value=1 0000000003
+test,tag=abc,other=a value=1 0000000004
+test,tag=abc,other=b value=1 0000000005
+test,tag=abc,other=a value=1 0000000005
+test,tag=bbc,other=a value=1 0000000005
+test,tag=abc,other=b value=1 0000000006
+test,tag=abc,other=a value=1 0000000007
+test,tag=abc,other=b value=0 0000000008
+test,tag=abc,other=a value=1 0000000009
+test,tag=abc,other=a value=1 0000000010
+test,tag=abc,other=a value=1 0000000011
+test,tag=abc,other=b value=1 0000000011
+test,tag=bbc,other=a value=1 0000000011
+test,tag=bbc,other=b value=1 0000000011
+test,tag=abc,other=a value=1 0000000021
 `
 	v := url.Values{}
 	v.Add("precision", "s")
 	s.MustWrite("mydb", "myrp", points, v)
 
-	exp := `{"series":[{"name":"test","columns":["time","count"],"values":[["1970-01-01T00:00:10Z",22]]}]}`
+	exp := `{"series":[{"name":"test","tags":{"tag":"abc"},"columns":["time","count"],"values":[["1970-01-01T00:00:10Z",24]]}]}`
 	if err := s.HTTPGetRetry(endpoint, exp, 100, time.Millisecond*5); err != nil {
 		t.Error(err)
 	}

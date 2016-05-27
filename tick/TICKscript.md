@@ -63,7 +63,7 @@ Program           = Statement { Statement } .
 Statement         = TypeDeclaration | Declaration | Expression .
 TypeDeclaration   = "var" identifier identifier .
 Declaration       = "var" identifier "=" Expression .
-Expression        = identifier { Chain } | Function { Chain } | PrimaryExpr .
+Expression        = identifier { Chain } | Function { Chain } | PrimaryExpr | StringList .
 Chain             = "@" Function | "|" Function { Chain } | "." Function { Chain} | "." identifier { Chain } .
 PrimaryExpr       = Primary { operator_lit Primary} .
 Function          = identifier "(" Parameters ")" .
@@ -76,6 +76,9 @@ Reference         = `"` { unicode_char } `"` .
 PrimaryFunc       = identifier "(" PrimaryParameters ")"
 PrimaryParameters = { PrimaryParameter "," } [ PrimaryParameter ] .
 PrimaryParameter  = PrimaryExpr .
+StringList        = "[" StringListItems "]" .
+StringListItems   = { StringListItem "," } [ StringListItem ]
+StringListItem    = string_lit | identifier | star_lit .
 
 ```
 

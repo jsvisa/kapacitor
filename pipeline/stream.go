@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"log"
 	"reflect"
 	"time"
 
@@ -245,4 +246,9 @@ func (s *FromNode) Where(lambda *ast.LambdaNode) *FromNode {
 func (s *FromNode) GroupBy(tag ...interface{}) *FromNode {
 	s.Dimensions = tag
 	return s
+}
+
+func (s *FromNode) validate() error {
+	log.Println("validate", s.Dimensions)
+	return validateDimensions(s.Dimensions)
 }

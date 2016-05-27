@@ -611,6 +611,8 @@ const (
 	VarRegex
 	VarDuration
 	VarLambda
+	VarList
+	VarStar
 )
 
 func (vt VarType) String() string {
@@ -631,6 +633,10 @@ func (vt VarType) String() string {
 		return "duration"
 	case VarLambda:
 		return "lambda"
+	case VarList:
+		return "list"
+	case VarStar:
+		return "star"
 	default:
 		return "invalid"
 	}
@@ -644,6 +650,7 @@ type Var struct {
 	RegexValue    string
 	DurationValue time.Duration
 	LambdaValue   string
+	ListValue     []Var
 
 	Type        VarType
 	Description string
@@ -654,33 +661,40 @@ func newVar(value interface{}, typ VarType, desc string) (Var, error) {
 		Type:        typ,
 		Description: desc,
 	}
-	switch v := value.(type) {
-	case bool:
-		g.BoolValue = v
-		g.Type = VarBool
-	case int64:
-		g.IntValue = v
-		g.Type = VarInt
-	case float64:
-		g.FloatValue = v
-		g.Type = VarFloat
-	case time.Duration:
-		g.DurationValue = v
-		g.Type = VarDuration
-	case string:
-		switch typ {
-		case VarLambda:
-			g.LambdaValue = v
-		case VarRegex:
-			g.RegexValue = v
-		case VarString:
-			g.StringValue = v
+	if typ == VarStar {
+		g.Type = VarStar
+	} else {
+		switch v := value.(type) {
+		case bool:
+			g.BoolValue = v
+			g.Type = VarBool
+		case int64:
+			g.IntValue = v
+			g.Type = VarInt
+		case float64:
+			g.FloatValue = v
+			g.Type = VarFloat
+		case time.Duration:
+			g.DurationValue = v
+			g.Type = VarDuration
+		case string:
+			switch typ {
+			case VarLambda:
+				g.LambdaValue = v
+			case VarRegex:
+				g.RegexValue = v
+			case VarString:
+				g.StringValue = v
+			default:
+				return Var{}, fmt.Errorf("unexpected var type %v, value is a string", typ)
+			}
+			g.Type = typ
+		case []Var:
+			g.ListValue = v
+			g.Type = VarList
 		default:
-			return Var{}, fmt.Errorf("unexpected var type %v, value is a string", typ)
+			return Var{}, fmt.Errorf("unsupported Var type %T.", value)
 		}
-		g.Type = typ
-	default:
-		return Var{}, fmt.Errorf("unsupported Var type %T, only int, float, string and bool are supported.", value)
 	}
 	if g.Type != typ {
 		return Var{}, fmt.Errorf("mismatched type and value: %T %v", value, typ)

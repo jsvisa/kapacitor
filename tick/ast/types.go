@@ -19,6 +19,8 @@ const (
 	TTime
 	TDuration
 	TLambda
+	TList
+	TStar
 )
 
 func (v ValueType) String() string {
@@ -39,6 +41,10 @@ func (v ValueType) String() string {
 		return "duration"
 	case TLambda:
 		return "lambda"
+	case TList:
+		return "list"
+	case TStar:
+		return "star"
 	}
 
 	return "invalid type"
@@ -62,6 +68,10 @@ func TypeOf(v interface{}) ValueType {
 		return TDuration
 	case *LambdaNode:
 		return TLambda
+	case []interface{}:
+		return TList
+	case *StarNode:
+		return TStar
 	default:
 		return InvalidType
 	}
@@ -85,6 +95,10 @@ func ZeroValue(t ValueType) interface{} {
 		return time.Duration(0)
 	case TLambda:
 		return (*LambdaNode)(nil)
+	case TList:
+		return []interface{}(nil)
+	case TStar:
+		return (*StarNode)(nil)
 	default:
 		return errors.New("invalid type")
 	}
@@ -138,6 +152,19 @@ func ValueToLiteralNode(pos Position, v interface{}) (Node, error) {
 		return &LambdaNode{
 			position:   p,
 			Expression: e,
+		}, nil
+	case []interface{}:
+		nodes := make([]Node, len(value))
+		var err error
+		for i, v := range value {
+			nodes[i], err = ValueToLiteralNode(pos, v)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return &ListNode{
+			position: p,
+			Nodes:    nodes,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported literal type %T", v)

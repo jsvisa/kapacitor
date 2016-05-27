@@ -213,7 +213,7 @@ func (p *parser) parseLambda(text string) (n *LambdaNode, err error) {
 
 //parse a complete program
 func (p *parser) program() Node {
-	l := newList(p.position(0))
+	l := newProgram(p.position(0))
 	var s Node
 	for {
 		switch p.peek().typ {
@@ -282,6 +282,8 @@ func (p *parser) expression() Node {
 		}
 	case TokenLambda:
 		return p.lambda()
+	case TokenLSBracket:
+		return p.stringList()
 	default:
 		return p.primaryExpr()
 	}
@@ -364,6 +366,39 @@ func (p *parser) parameter() (n Node) {
 		n = p.lambda()
 	default:
 		n = p.primary()
+	}
+	return
+}
+
+//parse a string list
+func (p *parser) stringList() Node {
+	t := p.expect(TokenLSBracket)
+	c := p.consumeComment()
+	strings := make([]Node, 0, 10)
+	for {
+		if p.peek().typ == TokenRSBracket {
+			break
+		}
+		strings = append(strings, p.stringItem())
+		if p.next().typ != TokenComma {
+			p.backup()
+			break
+		}
+	}
+	p.expect(TokenRSBracket)
+	return newList(p.position(t.pos), strings, c)
+}
+
+func (p *parser) stringItem() (n Node) {
+	switch t := p.peek(); t.typ {
+	case TokenIdent:
+		n = p.identifier()
+	case TokenString:
+		n = p.string()
+	case TokenMult:
+		n = p.star()
+	default:
+		p.unexpected(t, TokenIdent, TokenString, TokenMult)
 	}
 	return
 }

@@ -331,6 +331,8 @@ const (
 	VarRegex
 	VarDuration
 	VarLambda
+	VarList
+	VarStar
 )
 
 func (vt VarType) MarshalText() ([]byte, error) {
@@ -349,6 +351,10 @@ func (vt VarType) MarshalText() ([]byte, error) {
 		return []byte("duration"), nil
 	case VarLambda:
 		return []byte("lambda"), nil
+	case VarList:
+		return []byte("list"), nil
+	case VarStar:
+		return []byte("star"), nil
 	default:
 		return nil, fmt.Errorf("unknown VarType %d", vt)
 	}
@@ -370,6 +376,10 @@ func (vt *VarType) UnmarshalText(text []byte) error {
 		*vt = VarDuration
 	case "lambda":
 		*vt = VarLambda
+	case "list":
+		*vt = VarList
+	case "star":
+		*vt = VarStar
 	default:
 		return fmt.Errorf("unknown VarType %s", s)
 	}
@@ -433,6 +443,32 @@ func (vs *Vars) UnmarshalJSON(b []byte) error {
 				if err != nil {
 					return errors.Wrapf(err, "invalid var %v", v)
 				}
+			case VarList:
+				values, ok := v.Value.([]interface{})
+				if !ok {
+					return fmt.Errorf("invalid var %v: expected list of vars", v)
+				}
+				vars := make([]Var, len(values))
+				for i := range values {
+					m, ok := values[i].(map[string]interface{})
+					if !ok {
+						return fmt.Errorf("invalid var %v: expected list of vars", v)
+					}
+					if typeText, ok := m["type"]; ok {
+						err := vars[i].Type.UnmarshalText([]byte(typeText.(string)))
+						if err != nil {
+							return err
+						}
+					} else {
+						return fmt.Errorf("invalid var %v: expected list type key in object", v)
+					}
+					if value, ok := m["value"]; ok {
+						vars[i].Value = value
+					} else {
+						return fmt.Errorf("invalid var %v: expected list value key in object", v)
+					}
+				}
+				v.Value = vars
 			}
 		}
 		(*vs)[name] = v

@@ -1027,159 +1027,248 @@ func (ts *Service) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (ts *Service) convertToServiceVar(cvar client.Var) (Var, error) {
+	v := cvar.Value
+	var typ VarType
+	switch cvar.Type {
+	case client.VarBool:
+		typ = VarBool
+	case client.VarInt:
+		typ = VarInt
+	case client.VarFloat:
+		typ = VarFloat
+	case client.VarString:
+		typ = VarString
+	case client.VarRegex:
+		typ = VarRegex
+	case client.VarDuration:
+		typ = VarDuration
+	case client.VarLambda:
+		typ = VarLambda
+	case client.VarList:
+		typ = VarList
+		values, ok := cvar.Value.([]client.Var)
+		if !ok {
+			return Var{}, fmt.Errorf("var has list type but value is not list, got %T", cvar.Value)
+		}
+		vars := make([]Var, len(values))
+		var err error
+		for i := range values {
+			vars[i], err = ts.convertToServiceVar(values[i])
+			if err != nil {
+				return Var{}, err
+			}
+		}
+		v = vars
+	case client.VarStar:
+		typ = VarStar
+	}
+	return newVar(v, typ, cvar.Description)
+}
+
 func (ts *Service) convertToServiceVars(cvars client.Vars) (map[string]Var, error) {
 	vars := make(map[string]Var, len(cvars))
 	for name, value := range cvars {
-		var typ VarType
-		switch value.Type {
-		case client.VarBool:
-			typ = VarBool
-		case client.VarInt:
-			typ = VarInt
-		case client.VarFloat:
-			typ = VarFloat
-		case client.VarString:
-			typ = VarString
-		case client.VarRegex:
-			typ = VarRegex
-		case client.VarDuration:
-			typ = VarDuration
-		case client.VarLambda:
-			typ = VarLambda
-		}
-		v, err := newVar(value.Value, typ, value.Description)
+		v, err := ts.convertToServiceVar(value)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid var %s value %v", name, value)
+			return nil, errors.Wrapf(err, "invalid var %s", name)
 		}
 		vars[name] = v
 	}
 	return vars, nil
 }
 
+func (ts *Service) convertToClientVar(svar Var) (client.Var, error) {
+	var v interface{}
+	var typ client.VarType
+	switch svar.Type {
+	case VarBool:
+		v = svar.BoolValue
+		typ = client.VarBool
+	case VarInt:
+		v = svar.IntValue
+		typ = client.VarInt
+	case VarFloat:
+		v = svar.FloatValue
+		typ = client.VarFloat
+	case VarDuration:
+		v = svar.DurationValue
+		typ = client.VarDuration
+	case VarLambda:
+		v = svar.LambdaValue
+		typ = client.VarLambda
+	case VarString:
+		v = svar.StringValue
+		typ = client.VarString
+	case VarRegex:
+		v = svar.RegexValue
+		typ = client.VarRegex
+	case VarStar:
+		typ = client.VarStar
+	case VarList:
+		values := make([]client.Var, len(svar.ListValue))
+		var err error
+		for i := range svar.ListValue {
+			values[i], err = ts.convertToClientVar(svar.ListValue[i])
+			if err != nil {
+				return client.Var{}, err
+			}
+		}
+		v = values
+		typ = client.VarList
+	default:
+		return client.Var{}, fmt.Errorf("unknown var: %v", svar)
+	}
+	return client.Var{
+		Value:       v,
+		Type:        typ,
+		Description: svar.Description,
+	}, nil
+}
+
 func (ts *Service) convertToClientVars(svars map[string]Var) (client.Vars, error) {
 	vars := make(client.Vars, len(svars))
 	for name, value := range svars {
-		var v interface{}
-		var typ client.VarType
-		switch value.Type {
-		case VarBool:
-			v = value.BoolValue
-			typ = client.VarBool
-		case VarInt:
-			v = value.IntValue
-			typ = client.VarInt
-		case VarFloat:
-			v = value.FloatValue
-			typ = client.VarFloat
-		case VarDuration:
-			v = value.DurationValue
-			typ = client.VarDuration
-		case VarLambda:
-			v = value.LambdaValue
-			typ = client.VarLambda
-		case VarString:
-			v = value.StringValue
-			typ = client.VarString
-		case VarRegex:
-			v = value.RegexValue
-			typ = client.VarRegex
-		default:
-			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		v, err := ts.convertToClientVar(value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid var %s", name)
 		}
-		vars[name] = client.Var{
-			Value:       v,
-			Type:        typ,
-			Description: value.Description,
-		}
+		vars[name] = v
 	}
 	return vars, nil
+}
+
+func (ts *Service) convertToClientVarFromTick(kvar tick.Var) (client.Var, error) {
+	v := kvar.Value
+	var typ client.VarType
+	switch kvar.Type {
+	case ast.TBool:
+		typ = client.VarBool
+	case ast.TInt:
+		typ = client.VarInt
+	case ast.TFloat:
+		typ = client.VarFloat
+	case ast.TDuration:
+		typ = client.VarDuration
+	case ast.TStar:
+		typ = client.VarStar
+	case ast.TLambda:
+		typ = client.VarLambda
+		if l, ok := v.(*ast.LambdaNode); ok {
+			v = l.ExpressionString()
+		} else if v != nil {
+			return client.Var{}, fmt.Errorf("invalid lambda value type, expected: *ast.LambdaNode, got %T", v)
+		}
+	case ast.TString:
+		typ = client.VarString
+	case ast.TRegex:
+		typ = client.VarRegex
+		if r, ok := v.(*regexp.Regexp); ok {
+			v = r.String()
+		} else if v != nil {
+			return client.Var{}, fmt.Errorf("invalid regex value type, expected: *regexp.Regexp, got %T", v)
+		}
+	case ast.TList:
+		typ = client.VarList
+		list, ok := kvar.Value.([]tick.Var)
+		if !ok {
+			return client.Var{}, fmt.Errorf("invalid list value type, expected: []interface{}, got: %T", v)
+		}
+		values := make([]client.Var, len(list))
+		var err error
+		for i := range list {
+			values[i], err = ts.convertToClientVarFromTick(list[i])
+			if err != nil {
+				return client.Var{}, err
+			}
+		}
+		v = values
+	default:
+		return client.Var{}, fmt.Errorf("unkown var: %v", kvar)
+	}
+	return client.Var{
+		Value:       v,
+		Type:        typ,
+		Description: kvar.Description,
+	}, nil
 }
 
 func (ts *Service) convertToClientVarsFromTick(kvars map[string]tick.Var) (client.Vars, error) {
 	vars := make(client.Vars, len(kvars))
 	for name, value := range kvars {
-		v := value.Value
-		var typ client.VarType
-		switch value.Type {
-		case ast.TBool:
-			typ = client.VarBool
-		case ast.TInt:
-			typ = client.VarInt
-		case ast.TFloat:
-			typ = client.VarFloat
-		case ast.TDuration:
-			typ = client.VarDuration
-		case ast.TLambda:
-			typ = client.VarLambda
-			if l, ok := v.(*ast.LambdaNode); ok {
-				v = l.ExpressionString()
-			} else if v != nil {
-				return nil, fmt.Errorf("invalid lambda value type, expected: *ast.LambdaNode, got %T", v)
-			}
-		case ast.TString:
-			typ = client.VarString
-		case ast.TRegex:
-			typ = client.VarRegex
-			if r, ok := v.(*regexp.Regexp); ok {
-				v = r.String()
-			} else if v != nil {
-				return nil, fmt.Errorf("invalid regex value type, expected: *regexp.Regexp, got %T", v)
-			}
-		default:
-			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		v, err := ts.convertToClientVarFromTick(value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid var %s", name)
 		}
-		vars[name] = client.Var{
-			Value:       v,
-			Type:        typ,
-			Description: value.Description,
-		}
+		vars[name] = v
 	}
 	return vars, nil
+}
+func (ts *Service) convertToTickVarFromService(svar Var) (tick.Var, error) {
+	var v interface{}
+	var typ ast.ValueType
+	switch svar.Type {
+	case VarBool:
+		typ = ast.TBool
+		v = svar.BoolValue
+	case VarInt:
+		typ = ast.TInt
+		v = svar.IntValue
+	case VarFloat:
+		typ = ast.TFloat
+		v = svar.FloatValue
+	case VarDuration:
+		typ = ast.TDuration
+		v = svar.DurationValue
+	case VarStar:
+		typ = ast.TStar
+		v = &ast.StarNode{}
+	case VarLambda:
+		typ = ast.TLambda
+		l, err := ast.ParseLambda(svar.LambdaValue)
+		if err != nil {
+			return tick.Var{}, errors.Wrap(err, "invalid lambda expression")
+		}
+		v = l
+	case VarString:
+		typ = ast.TString
+		v = svar.StringValue
+	case VarRegex:
+		typ = ast.TRegex
+		r, err := regexp.Compile(svar.RegexValue)
+		if err != nil {
+			return tick.Var{}, errors.Wrap(err, "invalid regex pattern")
+		}
+		v = r
+	case VarList:
+		typ = ast.TList
+		values := make([]tick.Var, len(svar.ListValue))
+		var err error
+		for i := range svar.ListValue {
+			values[i], err = ts.convertToTickVarFromService(svar.ListValue[i])
+			if err != nil {
+				return tick.Var{}, err
+			}
+		}
+		v = values
+	default:
+		return tick.Var{}, fmt.Errorf("invalid var: %v", svar)
+	}
+	return tick.Var{
+		Value:       v,
+		Type:        typ,
+		Description: svar.Description,
+	}, nil
 }
 
 func (ts *Service) convertToTickVarsFromService(svars map[string]Var) (map[string]tick.Var, error) {
 	vars := make(map[string]tick.Var, len(svars))
 	for name, value := range svars {
-		var v interface{}
-		var typ ast.ValueType
-		switch value.Type {
-		case VarBool:
-			typ = ast.TBool
-			v = value.BoolValue
-		case VarInt:
-			typ = ast.TInt
-			v = value.IntValue
-		case VarFloat:
-			typ = ast.TFloat
-			v = value.FloatValue
-		case VarDuration:
-			typ = ast.TDuration
-			v = value.DurationValue
-		case VarLambda:
-			typ = ast.TLambda
-			l, err := ast.ParseLambda(value.LambdaValue)
-			if err != nil {
-				return nil, errors.Wrapf(err, "var %s has invalid lambda expression", name)
-			}
-			v = l
-		case VarString:
-			typ = ast.TString
-			v = value.StringValue
-		case VarRegex:
-			typ = ast.TRegex
-			r, err := regexp.Compile(value.RegexValue)
-			if err != nil {
-				return nil, errors.Wrapf(err, "var %s has invalid regex pattern", name)
-			}
-			v = r
-		default:
-			return nil, fmt.Errorf("invalid task var recorded in db: name %s var %v", name, value)
+		v, err := ts.convertToTickVarFromService(value)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid var %s", name)
 		}
-		vars[name] = tick.Var{
-			Value:       v,
-			Type:        typ,
-			Description: value.Description,
-		}
+		vars[name] = v
 	}
 	return vars, nil
 }

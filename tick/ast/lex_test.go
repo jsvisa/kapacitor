@@ -147,6 +147,20 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
+			in: "[",
+			tokens: []token{
+				token{TokenLSBracket, 0, "["},
+				token{TokenEOF, 1, ""},
+			},
+		},
+		{
+			in: "]",
+			tokens: []token{
+				token{TokenRSBracket, 0, "]"},
+				token{TokenEOF, 1, ""},
+			},
+		},
+		{
 			in: ".",
 			tokens: []token{
 				token{TokenDot, 0, "."},

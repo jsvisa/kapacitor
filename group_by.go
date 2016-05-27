@@ -93,14 +93,12 @@ func (g *GroupByNode) runGroupBy([]byte) error {
 }
 
 func determineDimensions(dimensions []interface{}) (allDimensions bool, realDimensions []string) {
-DIMS:
 	for _, dim := range dimensions {
 		switch d := dim.(type) {
 		case string:
 			realDimensions = append(realDimensions, d)
 		case *ast.StarNode:
 			allDimensions = true
-			break DIMS
 		}
 	}
 	sort.Strings(realDimensions)

@@ -29,6 +29,8 @@ const (
 	TokenDuration
 	TokenLParen
 	TokenRParen
+	TokenLSBracket
+	TokenRSBracket
 	TokenComma
 	TokenNot
 	TokenTrue
@@ -162,6 +164,10 @@ func (t TokenType) String() string {
 		return "("
 	case t == TokenRParen:
 		return ")"
+	case t == TokenLSBracket:
+		return "["
+	case t == TokenRSBracket:
+		return "]"
 	case t == TokenComma:
 		return ","
 	case t == TokenNot:
@@ -335,6 +341,12 @@ func lexToken(l *lexer) stateFn {
 			return lexToken
 		case r == ')':
 			l.emit(TokenRParen)
+			return lexToken
+		case r == '[':
+			l.emit(TokenLSBracket)
+			return lexToken
+		case r == ']':
+			l.emit(TokenRSBracket)
 			return lexToken
 		case r == '.':
 			l.emit(TokenDot)

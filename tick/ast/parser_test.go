@@ -93,7 +93,7 @@ func TestParseStrings(t *testing.T) {
 		assert.Nil(err)
 
 		//Assert we have a list of one statement
-		l, ok := root.(*ListNode)
+		l, ok := root.(*ProgramNode)
 		if !assert.True(ok, "tree.Root is not a list node") {
 			t.FailNow()
 		}
@@ -129,7 +129,7 @@ func TestParseStatements(t *testing.T) {
 	}{
 		{
 			script: `var x int`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -164,7 +164,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x float`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -199,7 +199,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = 'str'`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -233,8 +233,83 @@ func TestParseStatements(t *testing.T) {
 			},
 		},
 		{
+			script: `var x = ['str', 'asdf', 'another', s, *]`,
+			Root: &ProgramNode{
+				position: position{
+					pos:  0,
+					line: 1,
+					char: 1,
+				},
+				Nodes: []Node{
+					&DeclarationNode{
+						position: position{
+							pos:  0,
+							line: 1,
+							char: 1,
+						},
+						Left: &IdentifierNode{
+							position: position{
+								pos:  4,
+								line: 1,
+								char: 5,
+							},
+							Ident: "x",
+						},
+						Right: &ListNode{
+							position: position{
+								pos:  8,
+								line: 1,
+								char: 9,
+							},
+							Nodes: []Node{
+								&StringNode{
+									position: position{
+										pos:  9,
+										line: 1,
+										char: 10,
+									},
+									Literal: "str",
+								},
+								&StringNode{
+									position: position{
+										pos:  16,
+										line: 1,
+										char: 17,
+									},
+									Literal: "asdf",
+								},
+								&StringNode{
+									position: position{
+										pos:  24,
+										line: 1,
+										char: 25,
+									},
+									Literal: "another",
+								},
+								&IdentifierNode{
+									position: position{
+										pos:  35,
+										line: 1,
+										char: 36,
+									},
+									Ident: "s",
+								},
+								&StarNode{
+									position: position{
+										pos:  38,
+										line: 1,
+										char: 39,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			script: `var x = TRUE`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -269,7 +344,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = !FALSE`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -312,7 +387,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = 1`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -348,7 +423,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = -1`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -392,7 +467,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = 1.0`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -428,7 +503,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = -1.0`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -472,7 +547,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = 5h`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -507,7 +582,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = -5h`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -550,7 +625,7 @@ func TestParseStatements(t *testing.T) {
 		},
 		{
 			script: `var x = 5 + 5`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -604,7 +679,7 @@ func TestParseStatements(t *testing.T) {
 		{
 			script: `var x = 5
 var y = x * 2`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -680,7 +755,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = lambda: "value" < 10`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -739,7 +814,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = /.*\//`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -774,7 +849,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = a.f()`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -826,7 +901,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = int(sqrt(16.0)) + 4`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -901,7 +976,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = a.f(y/4.0)`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -981,7 +1056,7 @@ var y = x * 2`,
 		{
 			script: `var x = 3m
 			var y = -x`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1047,7 +1122,7 @@ var y = x * 2`,
 		},
 		{
 			script: `var x = a|b()`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1101,7 +1176,7 @@ var y = x * 2`,
 			script: `var t = 42
 			stream.where(lambda: "value" > t)
 			`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1200,7 +1275,7 @@ var y = x * 2`,
 	(1 + 2 - 3 * 4 / 5)
 )
 `,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1323,7 +1398,7 @@ var y = x * 2`,
 AND 
 // more comments.
 (TRUE OR FALSE))`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1512,7 +1587,7 @@ var t = 42
 // only select data above threshold
 stream.where(lambda: "value" > t)
 			`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1627,7 +1702,7 @@ var x = stream
 		.period(5m)
 		.every(1m)
 		|map(influxql.agg.mean('value'))`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,
@@ -1796,7 +1871,7 @@ var x = stream
 var x = stream
 		@dynamicFunc()
 			.property(5m)`,
-			Root: &ListNode{
+			Root: &ProgramNode{
 				position: position{
 					pos:  0,
 					line: 1,

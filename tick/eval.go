@@ -152,6 +152,26 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack, predefinedVars, defaul
 			return
 		}
 		stck.Push(node)
+	case *ast.ListNode:
+		nodes := make([]interface{}, len(node.Nodes))
+		for i, n := range node.Nodes {
+			err = eval(n, scope, stck, predefinedVars, defaultVars, ignoreMissingVars)
+			if err != nil {
+				return
+			}
+			a := stck.Pop()
+			switch typed := a.(type) {
+			case *ast.IdentifierNode:
+				// Resolve identifier
+				a, err = scope.Get(typed.Ident)
+				if err != nil {
+					return err
+				}
+			}
+
+			nodes[i] = a
+		}
+		stck.Push(nodes)
 	case *ast.TypeDeclarationNode:
 		err = evalTypeDeclaration(node, scope, predefinedVars, defaultVars, ignoreMissingVars)
 		if err != nil {
@@ -208,7 +228,7 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack, predefinedVars, defaul
 		if err != nil {
 			return
 		}
-	case *ast.ListNode:
+	case *ast.ProgramNode:
 		for _, n := range node.Nodes {
 			err = eval(n, scope, stck, predefinedVars, defaultVars, ignoreMissingVars)
 			if err != nil {
@@ -216,7 +236,11 @@ func eval(n ast.Node, scope *stateful.Scope, stck *stack, predefinedVars, defaul
 			}
 			// Pop unused result
 			if stck.Len() > 0 {
-				stck.Pop()
+				ret := stck.Pop()
+				if f, ok := ret.(unboundFunc); ok {
+					// Call global function
+					f(nil)
+				}
 			}
 		}
 	default:
@@ -280,6 +304,10 @@ func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, p
 		actualType = ast.TDuration
 	case "lambda":
 		actualType = ast.TLambda
+	case "list":
+		actualType = ast.TList
+	case "star":
+		actualType = ast.TStar
 	default:
 		return fmt.Errorf("invalid var type %q", node.Type.Ident)
 	}
@@ -298,7 +326,11 @@ func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, p
 		if predefinedValue.Type != actualType {
 			return fmt.Errorf("invalid type supplied for %s, got %v exp %v", name, predefinedValue.Type, actualType)
 		}
-		scope.Set(name, predefinedValue.Value)
+		v, err := convertVarToValue(Var{Value: predefinedValue.Value, Type: actualType})
+		if err != nil {
+			return err
+		}
+		scope.Set(name, v)
 	} else if ignoreMissingVars {
 		// Set zero value on scope, so execution can continue
 		scope.Set(name, ast.ZeroValue(actualType))
@@ -307,6 +339,48 @@ func evalTypeDeclaration(node *ast.TypeDeclarationNode, scope *stateful.Scope, p
 	}
 
 	return nil
+}
+
+func convertVarToValue(v Var) (interface{}, error) {
+	value := v.Value
+	if v.Type == ast.TList {
+		values, ok := value.([]Var)
+		if !ok {
+			return nil, fmt.Errorf("var has type list but value is type %T", value)
+		}
+
+		list := make([]interface{}, len(values))
+		for i := range values {
+			list[i] = values[i].Value
+		}
+		value = list
+	}
+	return value, nil
+}
+
+func convertValueToVar(value interface{}, typ ast.ValueType, desc string) (Var, error) {
+	varValue := value
+	if typ == ast.TList {
+		values, ok := value.([]interface{})
+		if !ok {
+			return Var{}, fmt.Errorf("var has type list but value is type %T", value)
+		}
+
+		list := make([]Var, len(values))
+		for i := range values {
+			typ := ast.TypeOf(values[i])
+			list[i] = Var{
+				Type:  typ,
+				Value: values[i],
+			}
+		}
+		varValue = list
+	}
+	return Var{
+		Type:        typ,
+		Value:       varValue,
+		Description: desc,
+	}, nil
 }
 
 func evalDeclaration(node *ast.DeclarationNode, scope *stateful.Scope, stck *stack, predefinedVars, defaultVars map[string]Var) error {
@@ -330,18 +404,23 @@ func evalDeclaration(node *ast.DeclarationNode, scope *stateful.Scope, stck *sta
 		if node.Comment != nil {
 			desc = node.Comment.CommentString()
 		}
-		defaultVars[name] = Var{
-			Type:        actualType,
-			Value:       value,
-			Description: desc,
+
+		v, err := convertValueToVar(value, actualType, desc)
+		if err != nil {
+			return err
 		}
+		defaultVars[name] = v
 	}
 	// Populate scope, first check for predefined var
 	if predefinedValue, ok := predefinedVars[name]; ok {
 		if predefinedValue.Type != actualType {
 			return fmt.Errorf("invalid type supplied for %s, got %v exp %v", name, predefinedValue.Type, actualType)
 		}
-		value = predefinedValue.Value
+		v, err := convertVarToValue(Var{Value: predefinedValue.Value, Type: actualType})
+		if err != nil {
+			return err
+		}
+		value = v
 	}
 	scope.Set(name, value)
 	return nil
@@ -395,6 +474,12 @@ func evalChain(p ast.Position, scope *stateful.Scope, stck *stack) error {
 }
 
 func evalFunc(f *ast.FunctionNode, scope *stateful.Scope, stck *stack, args []interface{}) error {
+	// If the first and only arg is a list use it as the list of args
+	if len(args) == 1 {
+		if a, ok := args[0].([]interface{}); ok {
+			args = a
+		}
+	}
 	rec := func(obj interface{}, errp *error) {
 		e := recover()
 		if e != nil {
@@ -821,7 +906,7 @@ func resolveIdents(n ast.Node, scope *stateful.Scope) (_ ast.Node, err error) {
 				return nil, err
 			}
 		}
-	case *ast.ListNode:
+	case *ast.ProgramNode:
 		for i, n := range node.Nodes {
 			node.Nodes[i], err = resolveIdents(n, scope)
 			if err != nil {

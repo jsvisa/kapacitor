@@ -644,6 +644,60 @@ func (n *StringNode) Equal(o interface{}) bool {
 	return false
 }
 
+//Holds the list of other nodes
+type ListNode struct {
+	position
+	Nodes   []Node
+	Comment *CommentNode
+}
+
+func newList(p position, nodes []Node, c *CommentNode) *ListNode {
+	return &ListNode{
+		position: p,
+		Nodes:    nodes,
+		Comment:  c,
+	}
+}
+
+func (n *ListNode) String() string {
+	return fmt.Sprintf("ListNode@%v{%v}%v", n.position, n.Nodes, n.Comment)
+}
+
+func (n *ListNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
+	if n.Comment != nil {
+		n.Comment.Format(buf, indent, onNewLine)
+		onNewLine = true
+	}
+	writeIndent(buf, indent, onNewLine)
+	buf.WriteByte('[')
+	for i, sn := range n.Nodes {
+		if i != 0 {
+			buf.WriteString(", ")
+		}
+		sn.Format(buf, indent, onNewLine)
+
+	}
+	buf.WriteByte(']')
+}
+func (n *ListNode) SetComment(c *CommentNode) {
+	n.Comment = c
+}
+
+func (n *ListNode) Equal(o interface{}) bool {
+	if on, ok := o.(*ListNode); ok {
+		if len(n.Nodes) != len(on.Nodes) {
+			return false
+		}
+		for i := range n.Nodes {
+			if !n.Nodes[i].Equal(on.Nodes[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 //Holds the textual representation of a regex literal
 type RegexNode struct {
 	position
@@ -868,7 +922,7 @@ func (n *LambdaNode) SetComment(c *CommentNode) {
 }
 func (n *LambdaNode) Equal(o interface{}) bool {
 	if on, ok := o.(*LambdaNode); ok {
-		return n.Expression.Equal(on.Expression)
+		return (n == nil && on == nil) || n.Expression.Equal(on.Expression)
 	}
 	return false
 }
@@ -883,26 +937,26 @@ func (n *LambdaNode) ExpressionString() string {
 }
 
 //Holds a function call with its args
-type ListNode struct {
+type ProgramNode struct {
 	position
 	Nodes []Node
 }
 
-func newList(p position) *ListNode {
-	return &ListNode{
+func newProgram(p position) *ProgramNode {
+	return &ProgramNode{
 		position: p,
 	}
 }
 
-func (n *ListNode) Add(node Node) {
+func (n *ProgramNode) Add(node Node) {
 	n.Nodes = append(n.Nodes, node)
 }
 
-func (n *ListNode) String() string {
-	return fmt.Sprintf("ListNode@%v{%v}", n.position, n.Nodes)
+func (n *ProgramNode) String() string {
+	return fmt.Sprintf("ProgramNode@%v{%v}", n.position, n.Nodes)
 }
 
-func (n *ListNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
+func (n *ProgramNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
 	for i, node := range n.Nodes {
 		if i != 0 {
 			buf.WriteByte('\n')
@@ -911,8 +965,9 @@ func (n *ListNode) Format(buf *bytes.Buffer, indent string, onNewLine bool) {
 		buf.WriteByte('\n')
 	}
 }
-func (n *ListNode) Equal(o interface{}) bool {
-	if on, ok := o.(*ListNode); ok {
+
+func (n *ProgramNode) Equal(o interface{}) bool {
+	if on, ok := o.(*ProgramNode); ok {
 		if len(n.Nodes) != len(on.Nodes) {
 			return false
 		}
